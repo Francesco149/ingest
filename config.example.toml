@@ -1,0 +1,68 @@
+[paths]
+knowledge_dir   = "/opt/ai-lab/knowledge"
+knowledge_index = "/opt/ai-lab/knowledge/.index.json"
+whisper_bin     = "/opt/ai-lab/whisper.cpp/build/bin/whisper-cli"
+whisper_model   = "/opt/ai-lab/whisper.cpp/models/ggml-medium.bin"
+yt_dlp_bin      = "yt-dlp"
+ffmpeg_bin      = "ffmpeg"
+ffprobe_bin     = "ffprobe"
+db_path         = "/opt/ai-lab/data/ingest.db"
+downloads_dir   = "/opt/ai-lab/downloads"
+
+[api]
+llama_base           = "http://localhost:8080"
+reasoning_llama_base = "http://localhost:8080"
+openwebui_base       = "http://localhost:3000"
+openwebui_key        = "xxxxxxxxxxxx"
+openwebui_collection = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+manga_api_key        = ""
+manga_api_url         = "https://example.com/manga/api/v1/"
+manga_url_fingerprint = "example.com/g/"
+reasoning_max_tokens = 3000 # Tune this to prevent cut-off summaries
+llama_timeout        = 1200
+llama_temperature    = 0.7
+
+[workers]
+download = 2
+cpu      = 4
+cuda     = 1
+vision   = 2
+
+[processing]
+chunk_duration = 30     # seconds per describe_single_chunk task
+fps            = 2.0    # frames per second for llama-video extraction
+
+# Browser to source cookies from for yt-dlp. Set to "" to disable.
+# Valid values: "chromium", "chrome", "firefox", "safari", "edge"
+cookies_from_browser = "chromium"
+
+# yt-dlp format strings tried in order — first success wins.
+yt_formats = [
+    "bestvideo[height<=1080]+bestaudio/best",
+    "bestvideo+bestaudio/best",
+]
+
+[manga]
+vision_uses_metadata = false
+description_batch_size = 3
+description_overlap = 1
+vision_max_tokens = 1024
+vision_temperature = 0.2
+summary_max_batch_size = 16 # how many batches of pages to summarize together
+
+[prompts.manga_describe]
+system = "You are a professional Manga Editor and Semantic Search Optimizer."
+user_template = "Describe this sequence of manga pages in extreme detail. Provide a detailed summary of the action followed by a section focusing on specific anime/manga tropes, character poses, clothing and scene types optimized for semantic search. Be direct and aggressive. Do not use preamble like 'This image shows'. Include a section with all the dialogue lines. Reading order is the manga order (right to left, top to bottom) If the speaker cannot be deduced, include the dialogue without the speaker. The pages provided are number {start} through {end}. Ignore any visual page markings. Include one section per page."
+
+[prompts.manga_summarize]
+system = "You are a professional Manga Editor and Semantic Search Optimizer."
+instructions = """
+Provide a markdown document containing the following sections:
+* summary of anime/manga tropes, narrative themes, etc involved, optimized for semantic search and referencing page numbers (individual pages, not ranges). Each entry follows this order: tag name, brief explanation, page numbers.
+* brief narrative summary.
+* one section per page: brief explanation of the scene depicted (no preamble), followed by two newlines followed by 'tags: ' followed by a semantic search-optimized summary focusing on specific anime/manga tropes involved in this page only - do not include things that are common throughout the whole work such as art style, focus on what is specific to this page. Take the over-arching narrative into account (use character names, consider how it fits into the events leading up and after it etc)
+* do not assume the page descriptions provided are the ground truth. use the big picture context to connect the dots and correct any mistakes in individual page descriptions
+"""
+
+[server]
+port = 8083

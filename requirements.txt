@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+httpx
+youtube-transcript-api
+trafilatura
+opencv-python
+sqlalchemy
