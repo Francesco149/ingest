@@ -148,6 +148,37 @@ def test_task_db_uses_temp_sqlite_and_dependency_readiness(tmp_path):
     asyncio.run(scenario())
 
 
+def test_task_db_expired_iso_retry_at_is_ready(tmp_path):
+    async def scenario():
+        db = TaskDB(tmp_path / "tasks.db")
+        past_retry = Task(
+            id="past-retry",
+            type="download_manga",
+            status=TaskStatus.PENDING,
+            input_data={
+                "url_slug": "past",
+                "retry_at": (datetime.now() - timedelta(seconds=1)).isoformat(),
+            },
+        )
+        future_retry = Task(
+            id="future-retry",
+            type="download_manga",
+            status=TaskStatus.PENDING,
+            input_data={
+                "url_slug": "future",
+                "retry_at": (datetime.now() + timedelta(hours=1)).isoformat(),
+            },
+        )
+
+        await db.add_task(past_retry)
+        await db.add_task(future_retry)
+
+        ready = await db.get_pending_ready_tasks()
+        assert [task.id for task in ready] == ["past-retry"]
+
+    asyncio.run(scenario())
+
+
 def test_task_manager_dispatches_same_pool_tasks_in_parallel(tmp_path, monkeypatch):
     async def scenario():
         pool = WorkerPool("cpu", 2)

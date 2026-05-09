@@ -12,6 +12,21 @@ from modules.fetcher_video import fetcher_video
 from tests.fixtures.synthetic_manga import generate_synthetic_manga_fixture
 
 
+def manga_fetch_config(tmp_path, image_servers=None):
+    return {
+        "paths": {"db_path": str(tmp_path / "cache.db")},
+        "api": {
+            "manga_api_url": "https://manga-api.test/",
+            "manga_api_key": "",
+        },
+        "manga": {
+            "image_servers": image_servers or ["fallback-img.test"],
+            "image_download_batch_size": 8,
+            "image_download_concurrency": 3,
+        },
+    }
+
+
 class ImmediatePool:
     def __init__(self):
         self.labels = []
@@ -236,13 +251,8 @@ def test_fetch_gallery_uses_api_auth_and_downloads_images(tmp_path, monkeypatch)
             return FakeResponse(content=f"image:{url}".encode("utf-8"))
 
     monkeypatch.setattr(fetcher_manga.httpx, "AsyncClient", FakeAsyncClient)
-    config = {
-        "api": {
-            "manga_api_url": "https://manga-api.test/",
-            "manga_api_key": "key-1",
-        },
-        "manga": {"image_servers": ["fallback-img.test"]},
-    }
+    config = manga_fetch_config(tmp_path)
+    config["api"]["manga_api_key"] = "key-1"
 
     result = __import__("asyncio").run(
         fetcher_manga.fetch_gallery("123", str(tmp_path), config)
@@ -302,13 +312,7 @@ def test_fetch_gallery_uses_configured_image_servers_when_metadata_omits_them(
             return FakeResponse(content=b"image")
 
     monkeypatch.setattr(fetcher_manga.httpx, "AsyncClient", FakeAsyncClient)
-    config = {
-        "api": {
-            "manga_api_url": "https://manga-api.test/",
-            "manga_api_key": "",
-        },
-        "manga": {"image_servers": ["configured-img.test"]},
-    }
+    config = manga_fetch_config(tmp_path, image_servers=["configured-img.test"])
 
     result = __import__("asyncio").run(
         fetcher_manga.fetch_gallery("123", str(tmp_path), config)
@@ -376,13 +380,7 @@ def test_fetch_gallery_downloads_fixture_images_from_page_urls(tmp_path, monkeyp
             return FakeResponse(content=fixture_path.read_bytes())
 
     monkeypatch.setattr(fetcher_manga.httpx, "AsyncClient", FakeAsyncClient)
-    config = {
-        "api": {
-            "manga_api_url": "https://manga-api.test/",
-            "manga_api_key": "",
-        },
-        "manga": {"image_servers": ["fallback-img.test"]},
-    }
+    config = manga_fetch_config(tmp_path)
 
     result = __import__("asyncio").run(
         fetcher_manga.fetch_gallery(
@@ -403,6 +401,65 @@ def test_fetch_gallery_downloads_fixture_images_from_page_urls(tmp_path, monkeyp
         downloaded_path = tmp_path / "downloaded" / f"image_{idx:03d}.jpg"
         assert result["image_info"][idx]["path"] == str(downloaded_path)
         assert downloaded_path.read_bytes() == Path(fixture_path).read_bytes()
+
+
+def test_fetch_gallery_caches_successful_metadata_api_response(tmp_path, monkeypatch):
+    requested_urls = []
+
+    class FakeResponse:
+        def __init__(self, *, payload=None, content=b"", status_code=200):
+            self._payload = payload
+            self.content = content
+            self.status_code = status_code
+
+        def json(self):
+            return self._payload
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                request = SimpleNamespace()
+                response = SimpleNamespace(status_code=self.status_code)
+                raise fetcher_manga.httpx.HTTPStatusError(
+                    "bad response", request=request, response=response
+                )
+
+    class FakeAsyncClient:
+        def __init__(self, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, url, headers=None):
+            requested_urls.append(url)
+            if url == "https://manga-api.test/galleries/123/":
+                return FakeResponse(
+                    payload={
+                        "image_servers": ["img.test"],
+                        "pages": [{"path": "a.jpg"}],
+                    }
+                )
+            return FakeResponse(content=f"image:{url}".encode("utf-8"))
+
+    monkeypatch.setattr(fetcher_manga.httpx, "AsyncClient", FakeAsyncClient)
+    config = manga_fetch_config(tmp_path)
+
+    first = __import__("asyncio").run(
+        fetcher_manga.fetch_gallery("123", str(tmp_path / "first"), config)
+    )
+    second = __import__("asyncio").run(
+        fetcher_manga.fetch_gallery("123", str(tmp_path / "second"), config)
+    )
+
+    assert first["metadata"] == second["metadata"]
+    assert requested_urls == [
+        "https://manga-api.test/galleries/123/",
+        "https://img.test/a.jpg",
+        "https://img.test/a.jpg",
+    ]
 
 
 def test_fetch_gallery_maps_image_429_to_rate_limit(tmp_path, monkeypatch):
@@ -444,13 +501,7 @@ def test_fetch_gallery_maps_image_429_to_rate_limit(tmp_path, monkeypatch):
             return FakeResponse(status_code=429)
 
     monkeypatch.setattr(fetcher_manga.httpx, "AsyncClient", FakeAsyncClient)
-    config = {
-        "api": {
-            "manga_api_url": "https://manga-api.test/",
-            "manga_api_key": "",
-        },
-        "manga": {"image_servers": ["fallback-img.test"]},
-    }
+    config = manga_fetch_config(tmp_path)
 
     try:
         __import__("asyncio").run(
@@ -460,3 +511,68 @@ def test_fetch_gallery_maps_image_429_to_rate_limit(tmp_path, monkeypatch):
         pass
     else:
         raise AssertionError("expected RateLimitError")
+
+
+def test_fetch_gallery_rate_limit_stops_before_later_page_batches(tmp_path, monkeypatch):
+    requested_urls = []
+
+    class FakeResponse:
+        def __init__(self, *, payload=None, status_code=200):
+            self._payload = payload
+            self.content = b""
+            self.status_code = status_code
+
+        def json(self):
+            return self._payload
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                request = SimpleNamespace()
+                response = SimpleNamespace(status_code=self.status_code)
+                raise fetcher_manga.httpx.HTTPStatusError(
+                    "bad response", request=request, response=response
+                )
+
+    class FakeAsyncClient:
+        def __init__(self, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, url, headers=None):
+            requested_urls.append(url)
+            if url == "https://manga-api.test/galleries/123/":
+                return FakeResponse(
+                    payload={
+                        "image_servers": ["img.test"],
+                        "pages": [
+                            {"path": "limited.jpg"},
+                            {"path": "should-not-request.jpg"},
+                            {"path": "also-should-not-request.jpg"},
+                        ],
+                    }
+                )
+            return FakeResponse(status_code=429)
+
+    monkeypatch.setattr(fetcher_manga.httpx, "AsyncClient", FakeAsyncClient)
+    config = manga_fetch_config(tmp_path)
+    config["manga"]["image_download_batch_size"] = 1
+    config["manga"]["image_download_concurrency"] = 1
+
+    try:
+        __import__("asyncio").run(
+            fetcher_manga.fetch_gallery("123", str(tmp_path), config)
+        )
+    except fetcher_manga.RateLimitError:
+        pass
+    else:
+        raise AssertionError("expected RateLimitError")
+
+    assert requested_urls == [
+        "https://manga-api.test/galleries/123/",
+        "https://img.test/limited.jpg",
+    ]

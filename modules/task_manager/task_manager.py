@@ -116,7 +116,10 @@ class TaskDB:
             rows = conn.execute("""
                 SELECT t.id FROM tasks t
                 WHERE t.status = 'PENDING'
-                AND (json_extract(t.input_data, '$.retry_at') IS NULL OR json_extract(t.input_data, '$.retry_at') <= CURRENT_TIMESTAMP)
+                AND (
+                    json_extract(t.input_data, '$.retry_at') IS NULL
+                    OR datetime(replace(json_extract(t.input_data, '$.retry_at'), 'T', ' ')) <= datetime('now', 'localtime')
+                )
                 AND NOT EXISTS (
                     SELECT 1 FROM json_each(t.dependencies) as d
                     JOIN tasks dep ON dep.id = d.value

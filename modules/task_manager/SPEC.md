@@ -55,7 +55,7 @@ None — no internal module dependencies (task modules are loaded dynamically vi
 - `_propagate_failure`: recursively CANCELS all children when a task FAILs
 - `_main_loop` polls every 1 second; on exception sleeps 5 seconds before resuming
 - `find_task` excludes CANCELLED and FAILED rows
-- `get_pending_ready_tasks` only selects `PENDING` tasks where `input_data['retry_at']` is `NULL` or `<= CURRENT_TIMESTAMP`
+- `get_pending_ready_tasks` only selects `PENDING` tasks where `input_data['retry_at']` is `NULL` or its parsed local datetime is `<= datetime('now', 'localtime')`, normalizing ISO strings with a `T` separator
 - Failure records include the exception class name in `error_msg`, and task-manager logs include task IDs and pool routing
 
 ## Must NOT

@@ -143,7 +143,11 @@ SQLite table `tasks`:
 - **Manga fetch:** `httpx` metadata and page-image downloads run inside the
   `download_manga` task's download worker; the fetcher does not submit nested
   worker-pool jobs. If metadata omits `image_servers`, the fetcher uses
-  `manga.image_servers` from config.
+  `manga.image_servers` from config. Successful gallery metadata API responses
+  are cached in SQLite by URL plus request body. Page image downloads are
+  scheduled in batches bounded by `manga.image_download_batch_size` and
+  `manga.image_download_concurrency`; a 429 cancels pending page work and
+  retries the task later.
 
 ---
 
@@ -215,6 +219,8 @@ yt_formats = [
 [manga]
 vision_uses_metadata = false
 image_servers = ["i3.manga.net"]
+image_download_batch_size = 8
+image_download_concurrency = 3
 description_batch_size = 3
 description_overlap = 1
 vision_max_tokens = 1024
