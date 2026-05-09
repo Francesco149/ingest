@@ -75,10 +75,26 @@ async def list_knowledge():
 async def status():
     return {
         "pools": {
-            "download": {"workers": engine.download_pool.n_workers, "queued": engine.download_pool.depth},
-            "cpu":      {"workers": engine.cpu_pool.n_workers,      "queued": engine.cpu_pool.depth},
-            "cuda":     {"workers": engine.cuda_pool.n_workers,     "queued": engine.cuda_pool.depth},
-            "vision":   {"workers": engine.vision_pool.n_workers,   "queued": engine.vision_pool.depth},
+            "download": {
+                "workers": engine.download_pool.n_workers,
+                "active": engine.download_pool.active,
+                "queued": engine.download_pool.depth,
+            },
+            "cpu": {
+                "workers": engine.cpu_pool.n_workers,
+                "active": engine.cpu_pool.active,
+                "queued": engine.cpu_pool.depth,
+            },
+            "cuda": {
+                "workers": engine.cuda_pool.n_workers,
+                "active": engine.cuda_pool.active,
+                "queued": engine.cuda_pool.depth,
+            },
+            "vision": {
+                "workers": engine.vision_pool.n_workers,
+                "active": engine.vision_pool.active,
+                "queued": engine.vision_pool.depth,
+            },
         },
         "tasks": {"total": len(await engine.task_manager.db.get_all_tasks())},
     }

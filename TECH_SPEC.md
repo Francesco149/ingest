@@ -47,10 +47,10 @@ state.
 ```json
 {
   "pools": {
-    "download": {"workers": 2, "queued": 0},
-    "cpu":      {"workers": 4, "queued": 0},
-    "cuda":     {"workers": 1, "queued": 0},
-    "vision":   {"workers": 2, "queued": 0}
+    "download": {"workers": 2, "active": 0, "queued": 0},
+    "cpu":      {"workers": 4, "active": 0, "queued": 0},
+    "cuda":     {"workers": 1, "active": 0, "queued": 0},
+    "vision":   {"workers": 2, "active": 0, "queued": 0}
   },
   "tasks": {"total": 42}
 }
@@ -95,14 +95,14 @@ Dependencies' `output_data` are injected into `input_data` as `dep_{task_id}` ke
 | `download_video`         | download | `describe_single_chunk` × N, `download_subtitles` |
 | `describe_single_chunk`  | cuda     | nothing                                  |
 | `download_subtitles`     | download | `index_video` + optionally `extract_audio`, `transcribe` |
-| `extract_audio`          | —        | nothing; submits ffmpeg work to `cpu_pool` |
-| `transcribe`             | —        | nothing; submits whisper work to `cuda_pool` |
+| `extract_audio`          | cpu      | nothing                                  |
+| `transcribe`             | cuda     | nothing                                  |
 | `index_video`            | —        | nothing                                  |
 | `download_article`       | download | `extract_article_content`                |
 | `extract_article_content`| cpu      | `chunk_article`                          |
 | `chunk_article`          | —        | `summarize_text_chunk` × N, `summarize_article` |
-| `summarize_text_chunk`   | —        | nothing                                  |
-| `summarize_article`      | —        | `index_article`                          |
+| `summarize_text_chunk`   | vision   | nothing                                  |
+| `summarize_article`      | vision   | `index_article`                          |
 | `index_article`          | —        | nothing                                  |
 | `download_manga`         | download | `describe_manga_page` × N, `summarize_manga` × N, `transcribe_manga` × N, `index_manga` |
 | `describe_manga_page`    | vision   | nothing                                  |

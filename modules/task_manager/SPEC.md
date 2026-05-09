@@ -47,12 +47,14 @@ None — no internal module dependencies (task modules are loaded dynamically vi
 - Dispatch lock: `UPDATE … WHERE status = 'PENDING'` checked via `rowcount` — prevents double-dispatch
 - `_dispatch` enriches `input_data` with `dep_{task_id}: output_data` for each DONE dependency before calling `module.run()`
 - `_dispatch` catches `RateLimitError`: sets status `PENDING` and `input_data['retry_at'] = (now + 60s).isoformat()`
+- Pooled and unpooled tasks share the same `_run_task` path, so `DONE` / `FAILED` / rate-limited transitions behave the same either way
 - Task modules are loaded as `tasks.{task.type}` via `importlib.import_module`
 - `context` passed to tasks: `{pool_name}_pool` for each pool, plus `task_manager` and `config`
 - `_propagate_failure`: recursively CANCELS all children when a task FAILs
 - `_main_loop` polls every 1 second; on exception sleeps 5 seconds before resuming
 - `find_task` excludes CANCELLED and FAILED rows
 - `get_pending_ready_tasks` only selects `PENDING` tasks where `input_data['retry_at']` is `NULL` or `<= CURRENT_TIMESTAMP`
+- Failure records include the exception class name in `error_msg`, and task-manager logs include task IDs and pool routing
 
 ## Must NOT
 - Import from `engine`, `api`, or any fetcher module

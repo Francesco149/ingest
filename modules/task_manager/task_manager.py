@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
 log = logging.getLogger("task_manager")
 
@@ -215,25 +215,31 @@ class TaskManager:
         while self.running:
             try:
                 ready_tasks = await self.db.get_pending_ready_tasks()
+                if ready_tasks:
+                    log.info(
+                        "[task_manager] ready tasks: %s",
+                        ", ".join(f"{task.type}:{task.id}" for task in ready_tasks),
+                    )
                 for task in ready_tasks:
                     asyncio.create_task(self._dispatch(task))
                 await asyncio.sleep(1)
             except Exception as e:
-                log.error(f"[task_manager] loop error: {e}")
+                log.error(f"[task_manager] loop error: {e}", exc_info=True)
                 await asyncio.sleep(5)
 
     async def _dispatch(self, task: Task):
         log.info(f"[task_manager] dispatching {task.id} ({task.type})")
-        
+
         loop = asyncio.get_running_loop()
         success = await loop.run_in_executor(None, self._try_lock_task, task.id)
         if not success:
+            log.info(f"[task_manager] skipped {task.id} ({task.type}); lock not acquired")
             return
 
         try:
             module_name = f"modules.tasks.{task.type}.{task.type}"
             module = importlib.import_module(module_name)
-            
+
             # Context with pools and task_manager
             context = {f"{k}_pool": v for k, v in self.pools.items() if k != "config"}
             context["task_manager"] = self
@@ -250,31 +256,63 @@ class TaskManager:
             if pool_name:
                 pool = self.pools.get(pool_name)
                 if pool:
-                    async def run_and_update():
-                        try:
-                            result = await module.run(task, context, input_data=enriched_input)
-                            await self.db.update_status(task.id, TaskStatus.DONE, output=result)
-                        except Exception as e:
-                            await self._propagate_failure(task.id)
-                            await self.db.update_status(task.id, TaskStatus.FAILED, error=str(e))
-                    
-                    await pool.submit(run_and_update, label=f"{task.type}:{task.id}")
+                    async def run_in_pool() -> None:
+                        await self._run_task(task, module, context, enriched_input)
+
+                    log.info(
+                        f"[task_manager] submitting {task.id} ({task.type}) to pool={pool_name}"
+                    )
+                    await pool.submit(
+                        run_in_pool,
+                        label=f"{task.type}:{task.id}",
+                    )
                     return
 
-            # Fallback logic
+            await self._run_task(task, module, context, enriched_input)
+        except Exception as e:
+            await self._fail_task(task, e)
+
+    async def _run_task(
+        self,
+        task: Task,
+        module: Any,
+        context: Dict[str, Any],
+        enriched_input: Dict[str, Any],
+    ) -> None:
+        try:
             result = await module.run(task, context, input_data=enriched_input)
-            await self.db.update_status(task.id, TaskStatus.DONE, output=result)
-            
+            await self.db.update_status(task.id, TaskStatus.DONE, output=result, error=None)
+            log.info(f"[task_manager] task {task.id} ({task.type}) completed")
         except RateLimitError as e:
-            log.warning(f"[task_manager] rate limit hit for {task.id}: {e}")
             retry_at = (datetime.now() + timedelta(seconds=60)).isoformat()
             new_input = task.input_data.copy()
-            new_input['retry_at'] = retry_at
-            await self.db.update_status(task.id, TaskStatus.PENDING, input_data=new_input)
+            new_input["retry_at"] = retry_at
+            await self.db.update_status(
+                task.id,
+                TaskStatus.PENDING,
+                input_data=new_input,
+                error=f"Rate limited until {retry_at}: {e}",
+            )
+            log.warning(
+                f"[task_manager] rate limit hit for {task.id} ({task.type}); retry_at={retry_at}: {e}"
+            )
         except Exception as e:
-            log.error(f"[task_manager] task {task.id} failed: {e}")
-            await self.db.update_status(task.id, TaskStatus.FAILED, error=str(e))
-            await self._propagate_failure(task.id)
+            await self._fail_task(task, e)
+
+    async def _fail_task(self, task: Task, exc: Exception) -> None:
+        error_summary = self._format_exception(exc)
+        log.error(
+            f"[task_manager] task {task.id} ({task.type}) failed: {error_summary}",
+            exc_info=True,
+        )
+        await self.db.update_status(task.id, TaskStatus.FAILED, error=error_summary)
+        await self._propagate_failure(task.id)
+
+    def _format_exception(self, exc: Exception) -> str:
+        message = str(exc).strip()
+        if message:
+            return f"{type(exc).__name__}: {message}"
+        return type(exc).__name__
 
     def _try_lock_task(self, task_id: str) -> bool:
         with sqlite3.connect(self.db.db_path) as conn:
@@ -285,7 +323,14 @@ class TaskManager:
     async def _propagate_failure(self, parent_id: str):
         children = await self.db.get_children(parent_id)
         for child in children:
-            await self.db.update_status(child.id, TaskStatus.CANCELLED, error=f"Parent {parent_id} failed")
+            log.info(
+                f"[task_manager] cancelling child {child.id} ({child.type}) because parent {parent_id} failed"
+            )
+            await self.db.update_status(
+                child.id,
+                TaskStatus.CANCELLED,
+                error=f"Parent {parent_id} failed",
+            )
             await self._propagate_failure(child.id)
 
     async def create_task(self, type: str, input_data: Dict[str, Any], dependencies: List[str] = None) -> str:

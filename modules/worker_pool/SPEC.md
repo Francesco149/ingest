@@ -10,6 +10,7 @@ class WorkerPool:
     def start() -> None
     async def submit(fn: Callable, label: str = "") -> Any
     @property depth -> int
+    @property active -> int
 ```
 
 ## Imports From
@@ -19,7 +20,9 @@ None — no internal dependencies.
 - `start()` spawns `n_workers` asyncio tasks running `_worker` loops
 - `submit()` detects sync vs async callable: sync functions are wrapped in `loop.run_in_executor(None, fn)`
 - `depth` returns `queue.qsize()` — number of pending (not yet started) jobs
+- `active` returns the number of jobs currently running in worker coroutines
 - Job future is created with `asyncio.get_event_loop().create_future()`; exceptions are propagated to caller
+- Queue/start/done/failure log lines include pool name, job label, active jobs, and queued jobs
 
 ## Must NOT
 - Import from any internal module

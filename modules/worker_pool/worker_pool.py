@@ -1,6 +1,6 @@
 import asyncio
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable
+from typing import Any, Callable
 import logging
 
 log = logging.getLogger("worker_pool")
@@ -17,6 +17,7 @@ class WorkerPool:
         self.n_workers = n_workers
         self.queue: asyncio.Queue[Job] = asyncio.Queue()
         self._tasks: list[asyncio.Task] = []
+        self._active_jobs = 0
 
     def start(self):
         for i in range(self.n_workers):
@@ -26,7 +27,11 @@ class WorkerPool:
     async def _worker(self, idx: int):
         while True:
             job = await self.queue.get()
-            log.info(f"[pool:{self.name}:{idx}] start: {job.label}")
+            self._active_jobs += 1
+            log.info(
+                f"[pool:{self.name}:{idx}] start: {job.label} "
+                f"(active={self._active_jobs}, queued={self.depth})"
+            )
             try:
                 result = await job.fn()
                 job.future.set_result(result)
@@ -34,8 +39,12 @@ class WorkerPool:
                 log.error(f"[pool:{self.name}:{idx}] failed: {job.label} — {e}", exc_info=True)
                 job.future.set_exception(e)
             finally:
+                self._active_jobs -= 1
                 self.queue.task_done()
-            log.info(f"[pool:{self.name}:{idx}] done: {job.label}")
+            log.info(
+                f"[pool:{self.name}:{idx}] done: {job.label} "
+                f"(active={self._active_jobs}, queued={self.depth})"
+            )
 
     async def submit(self, fn: Callable[[], Any], label: str = "") -> Any:
         task_fn = fn
@@ -48,8 +57,16 @@ class WorkerPool:
         job = Job(fn=task_fn, label=label,
                   future=asyncio.get_event_loop().create_future())
         await self.queue.put(job)
+        log.info(
+            f"[pool:{self.name}] queued: {label} "
+            f"(active={self._active_jobs}, queued={self.depth})"
+        )
         return await job.future
 
     @property
     def depth(self) -> int:
         return self.queue.qsize()
+
+    @property
+    def active(self) -> int:
+        return self._active_jobs
