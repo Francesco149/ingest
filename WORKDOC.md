@@ -5,9 +5,9 @@
 Build testing infrastructure one path at a time. Use isolated temp paths and
 mocked services; never use production config, production DB, production
 knowledge dirs, or private APIs in tests. Fast mocked smoke coverage is now in
-place for core, fetchers, indexer/RAG, article tasks, video tasks, and manga
-tasks. Current next path: slower endpoint-backed integration tests using
-generated dummy data.
+place for core, fetchers, indexer/RAG, article tasks, video tasks, manga tasks,
+and deterministic synthetic fixture generation. Current next path: run and tune
+slower endpoint-backed integration tests using generated dummy data.
 
 ## Environment
 - Use `nix-shell` from the repo root.
@@ -59,11 +59,23 @@ generated dummy data.
   - `describe_manga_page`, `summarize_manga`, `transcribe_manga`, and
     `index_manga` prompt/data assembly with LLM/RAG mocked
   - Manga fetcher/task specs updated where they had drifted from current behavior.
+- Synthetic manga fixture generator added:
+  - dependency-free PNG writer and bitmap text renderer under
+    `tests/fixtures/synthetic_manga.py`
+  - produces three deterministic manga-style pages plus `reference.json`
+  - visible page numbers are deliberately wrong (`99`, `7`, `42`) while story
+    order is pages 1-3.
+- Endpoint-backed manga integration scaffold added:
+  - opt-in with `INGEST_RUN_ENDPOINT_TESTS=1`
+  - defaults: reasoning LLM `http://localhost:8080`, llama-video
+    `http://localhost:7080`
+  - override with `INGEST_REASONING_LLM_BASE` and `INGEST_LLAMA_VIDEO_BASE`
+  - normal `pytest` collects it as skipped.
 
 ## Next Recommended Tests
-1. Add slower endpoint-backed manga integration with generated dummy images.
-   Include deliberately wrong visible page numbers in images to verify prompt
-   behavior asks the model to ignore visual page markings.
+1. Run the opt-in manga endpoint integration from the actual service network
+   context and tune assertions/prompts as needed:
+   `INGEST_RUN_ENDPOINT_TESTS=1 pytest tests/integration/test_manga_endpoint_fixture.py`.
 2. Add slower no-captions Whisper integration using temp DB/dirs and
    local model path `/opt/ai-lab/models/whisper/ggml-medium.bin`.
 3. Add optional semantic assertions using the embeddings endpoint to compare
