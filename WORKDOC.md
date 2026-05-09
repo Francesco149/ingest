@@ -4,12 +4,19 @@
 ## Current Focus
 Build testing infrastructure one path at a time. Use isolated temp paths and
 mocked services; never use production config, production DB, production
-knowledge dirs, or private APIs in tests. Current next path after video smoke:
-manga pipeline tests with mocked private API and generated dummy images.
+knowledge dirs, or private APIs in tests. Fast mocked smoke coverage is now in
+place for core, fetchers, indexer/RAG, article tasks, video tasks, and manga
+tasks. Current next path: slower endpoint-backed integration tests using
+generated dummy data.
 
 ## Environment
 - Use `nix-shell` from the repo root.
 - Prefer local Nix cache `https://cache.box.headpats.uk`; see `AGENTS.md`.
+- Slower endpoint-backed tests can use host-local services, accounting for the
+  sandbox/network boundary:
+  - reasoning LLM: `http://localhost:8080`
+  - llama-video: `http://localhost:7080`
+  - embeddings: `http://localhost:6080`
 - Baseline commands:
   - `nix-shell --run 'python -m compileall run_api.py modules'`
   - `nix-shell --run 'pytest tests/test_smoke_core.py tests/test_smoke_fetchers.py'`
@@ -46,13 +53,21 @@ manga pipeline tests with mocked private API and generated dummy images.
   - `extract_audio` ffmpeg command and `transcribe` Whisper command/deps
   - `summarize_video` and `index_video` dep-output assembly with LLM/RAG mocked
   - Video task specs updated where they had drifted from current behavior.
+- Manga smoke tests added:
+  - `fetcher_manga.fetch_gallery` mocked API/image downloads and 429 handling
+  - `download_manga` overlapping page batch fan-out and index dependency shape
+  - `describe_manga_page`, `summarize_manga`, `transcribe_manga`, and
+    `index_manga` prompt/data assembly with LLM/RAG mocked
+  - Manga fetcher/task specs updated where they had drifted from current behavior.
 
 ## Next Recommended Tests
-1. Add manga pipeline test with a mock private API and generated dummy
-   images. Include deliberately wrong visible page numbers in images to verify
-   prompt behavior asks the model to ignore visual page markings.
-2. Add slower optional no-captions Whisper integration using temp DB/dirs and
+1. Add slower endpoint-backed manga integration with generated dummy images.
+   Include deliberately wrong visible page numbers in images to verify prompt
+   behavior asks the model to ignore visual page markings.
+2. Add slower no-captions Whisper integration using temp DB/dirs and
    local model path `/opt/ai-lab/models/whisper/ggml-medium.bin`.
+3. Add optional semantic assertions using the embeddings endpoint to compare
+   generated summaries/transcripts against reference text.
 
 ## Open Questions
 - How strict should semantic/LLM correctness checks be? Candidate approach:

@@ -14,13 +14,14 @@ async def fetch_gallery(gallery_id: str, download_dir: str, pool: WorkerPool, co
 
 ## Behavior Rules
 - Uses `httpx.AsyncClient` for API calls.
-- Fetches metadata from manga API (e.g., `/api/v2/galleries/{gallery_id}`).
+- Fetches metadata from `{manga_api_url}/galleries/{gallery_id}/`.
 - Uses `manga_api_key` from `config['api']` for authentication via `Authorization: Key <api_key>` header.
-- Downloads all images in the gallery to `download_dir`.
+- Builds image URLs from `metadata["image_servers"]` and each page `path`, then
+  downloads images to `download_dir` as `image_{index:03d}.jpg`.
 - Uses `pool` to manage concurrent image downloads.
 - Returns a dictionary: `{metadata: ..., image_info: [...]}`.
 - Raises errors if the gallery is not found or downloads fail.
-- Raises RateLimitError if the API returns a 429 status code.
+- Raises `RateLimitError` if an image download returns a 429 status code.
 
 ## Must NOT
 - Import from engine or any task module except task_manager.

@@ -5,6 +5,7 @@ import types
 from types import SimpleNamespace
 
 from modules.fetcher_article import fetcher_article
+from modules.fetcher_manga import fetcher_manga
 from modules.fetcher_subtitles import fetcher_subtitles
 from modules.fetcher_video import fetcher_video
 
@@ -188,3 +189,127 @@ def test_download_article_uses_browser_headers(monkeypatch):
     assert seen["raised"] is True
     assert seen["client_kwargs"]["follow_redirects"] is True
     assert "Mozilla/5.0" in seen["client_kwargs"]["headers"]["User-Agent"]
+
+
+def test_fetch_gallery_uses_api_auth_and_downloads_images(tmp_path, monkeypatch):
+    calls = []
+
+    class FakeResponse:
+        def __init__(self, *, payload=None, content=b"", status_code=200):
+            self._payload = payload
+            self.content = content
+            self.status_code = status_code
+
+        def json(self):
+            return self._payload
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                request = SimpleNamespace()
+                response = SimpleNamespace(status_code=self.status_code)
+                raise fetcher_manga.httpx.HTTPStatusError(
+                    "bad response", request=request, response=response
+                )
+
+    class FakeAsyncClient:
+        def __init__(self, **kwargs):
+            calls.append(("client", kwargs))
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, url, headers=None):
+            calls.append(("get", url, headers))
+            if url == "https://manga-api.test/galleries/123/":
+                return FakeResponse(
+                    payload={
+                        "title": {"pretty": "Gallery"},
+                        "image_servers": ["img-a.test", "img-b.test"],
+                        "pages": [{"path": "a.jpg"}, {"path": "b.jpg"}],
+                    }
+                )
+            return FakeResponse(content=f"image:{url}".encode("utf-8"))
+
+    monkeypatch.setattr(fetcher_manga.httpx, "AsyncClient", FakeAsyncClient)
+    config = {
+        "api": {
+            "manga_api_url": "https://manga-api.test/",
+            "manga_api_key": "key-1",
+        }
+    }
+
+    result = __import__("asyncio").run(
+        fetcher_manga.fetch_gallery("123", str(tmp_path), ImmediatePool(), config)
+    )
+
+    assert result["metadata"]["title"]["pretty"] == "Gallery"
+    assert result["image_info"] == [
+        {"path": str(tmp_path / "image_000.jpg"), "url": "https://img-a.test/a.jpg"},
+        {"path": str(tmp_path / "image_001.jpg"), "url": "https://img-b.test/b.jpg"},
+    ]
+    assert (tmp_path / "image_000.jpg").read_bytes() == b"image:https://img-a.test/a.jpg"
+    assert (tmp_path / "image_001.jpg").read_bytes() == b"image:https://img-b.test/b.jpg"
+    assert calls[1] == (
+        "get",
+        "https://manga-api.test/galleries/123/",
+        {"Authorization": "Key key-1"},
+    )
+
+
+def test_fetch_gallery_maps_image_429_to_rate_limit(tmp_path, monkeypatch):
+    class FakeResponse:
+        def __init__(self, *, payload=None, status_code=200):
+            self._payload = payload
+            self.content = b""
+            self.status_code = status_code
+
+        def json(self):
+            return self._payload
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                request = SimpleNamespace()
+                response = SimpleNamespace(status_code=self.status_code)
+                raise fetcher_manga.httpx.HTTPStatusError(
+                    "bad response", request=request, response=response
+                )
+
+    class FakeAsyncClient:
+        def __init__(self, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, url, headers=None):
+            if url.endswith("/galleries/123/"):
+                return FakeResponse(
+                    payload={
+                        "image_servers": ["img.test"],
+                        "pages": [{"path": "limited.jpg"}],
+                    }
+                )
+            return FakeResponse(status_code=429)
+
+    monkeypatch.setattr(fetcher_manga.httpx, "AsyncClient", FakeAsyncClient)
+    config = {
+        "api": {
+            "manga_api_url": "https://manga-api.test/",
+            "manga_api_key": "",
+        }
+    }
+
+    try:
+        __import__("asyncio").run(
+            fetcher_manga.fetch_gallery("123", str(tmp_path), ImmediatePool(), config)
+        )
+    except fetcher_manga.RateLimitError:
+        pass
+    else:
+        raise AssertionError("expected RateLimitError")

@@ -25,7 +25,10 @@ filename str (optional)
 Nothing.
 
 ## Behavior Rules
-- Combines metadata and descriptions into a single text block.
-- Creates a structured Markdown file and saves it in a sub-directory named after the gallery's slug.
-- Uploads the file to the RAG knowledge base using `save_and_upload`.
-- On failure, returns `success: False`.
+- Collects `reasoning_text` and `transcript_text` from all `dep_*` dictionaries.
+- Sorts reasoning and transcript parts independently by `start_page` before
+  joining each group with `---` separators.
+- Filename is `{best_title[:90]}-{url_slug}.md`, falling back to
+  `{YYYY-MM-DD}-{url_slug}.md` when no title exists.
+- Uploads via `save_and_upload(..., replace_existing=True)`.
+- Raises when required dependency text is missing or indexing fails.
