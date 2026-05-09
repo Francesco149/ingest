@@ -35,7 +35,7 @@ async def fetch_gallery(gallery_id: str, download_dir: str, config: dict) -> dic
         image_info = []
         tasks = []
         task_to_info_map = []
-        servers = metadata.get('image_servers', ['i3.manga.net'])
+        servers = metadata.get('image_servers') or config['manga']['image_servers']
         
         async def _download_task(u, p):
             log.info(f'Downloading {u}')

@@ -142,7 +142,8 @@ SQLite table `tasks`:
 - **Article fetch:** `httpx` with a browser User-Agent, `follow_redirects=True`
 - **Manga fetch:** `httpx` metadata and page-image downloads run inside the
   `download_manga` task's download worker; the fetcher does not submit nested
-  worker-pool jobs.
+  worker-pool jobs. If metadata omits `image_servers`, the fetcher uses
+  `manga.image_servers` from config.
 
 ---
 
@@ -213,6 +214,7 @@ yt_formats = [
 
 [manga]
 vision_uses_metadata = false
+image_servers = ["i3.manga.net"]
 description_batch_size = 3
 description_overlap = 1
 vision_max_tokens = 1024

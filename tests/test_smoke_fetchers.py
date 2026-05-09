@@ -240,7 +240,8 @@ def test_fetch_gallery_uses_api_auth_and_downloads_images(tmp_path, monkeypatch)
         "api": {
             "manga_api_url": "https://manga-api.test/",
             "manga_api_key": "key-1",
-        }
+        },
+        "manga": {"image_servers": ["fallback-img.test"]},
     }
 
     result = __import__("asyncio").run(
@@ -259,6 +260,70 @@ def test_fetch_gallery_uses_api_auth_and_downloads_images(tmp_path, monkeypatch)
         "https://manga-api.test/galleries/123/",
         {"Authorization": "Key key-1"},
     )
+
+
+def test_fetch_gallery_uses_configured_image_servers_when_metadata_omits_them(
+    tmp_path,
+    monkeypatch,
+):
+    requested_urls = []
+
+    class FakeResponse:
+        def __init__(self, *, payload=None, content=b"", status_code=200):
+            self._payload = payload
+            self.content = content
+            self.status_code = status_code
+
+        def json(self):
+            return self._payload
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                request = SimpleNamespace()
+                response = SimpleNamespace(status_code=self.status_code)
+                raise fetcher_manga.httpx.HTTPStatusError(
+                    "bad response", request=request, response=response
+                )
+
+    class FakeAsyncClient:
+        def __init__(self, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, url, headers=None):
+            requested_urls.append(url)
+            if url == "https://manga-api.test/galleries/123/":
+                return FakeResponse(payload={"pages": [{"path": "a.jpg"}]})
+            return FakeResponse(content=b"image")
+
+    monkeypatch.setattr(fetcher_manga.httpx, "AsyncClient", FakeAsyncClient)
+    config = {
+        "api": {
+            "manga_api_url": "https://manga-api.test/",
+            "manga_api_key": "",
+        },
+        "manga": {"image_servers": ["configured-img.test"]},
+    }
+
+    result = __import__("asyncio").run(
+        fetcher_manga.fetch_gallery("123", str(tmp_path), config)
+    )
+
+    assert requested_urls == [
+        "https://manga-api.test/galleries/123/",
+        "https://configured-img.test/a.jpg",
+    ]
+    assert result["image_info"] == [
+        {
+            "path": str(tmp_path / "image_000.jpg"),
+            "url": "https://configured-img.test/a.jpg",
+        }
+    ]
 
 
 def test_fetch_gallery_downloads_fixture_images_from_page_urls(tmp_path, monkeypatch):
@@ -315,7 +380,8 @@ def test_fetch_gallery_downloads_fixture_images_from_page_urls(tmp_path, monkeyp
         "api": {
             "manga_api_url": "https://manga-api.test/",
             "manga_api_key": "",
-        }
+        },
+        "manga": {"image_servers": ["fallback-img.test"]},
     }
 
     result = __import__("asyncio").run(
@@ -382,7 +448,8 @@ def test_fetch_gallery_maps_image_429_to_rate_limit(tmp_path, monkeypatch):
         "api": {
             "manga_api_url": "https://manga-api.test/",
             "manga_api_key": "",
-        }
+        },
+        "manga": {"image_servers": ["fallback-img.test"]},
     }
 
     try:
