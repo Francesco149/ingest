@@ -24,9 +24,10 @@ url_slug      str  url slug (mandatory)
 
 ## Imports From
 - `task_manager`: `Task`
-- `parser`: `extract_content` (called via pool.submit)
+- `parser`: `extract_content`
 
 ## Behavior Rules
+- Parsing runs directly inside the cpu worker assigned by `POOL = "cpu"`
 - Full markdown content is passed directly into `chunk_article` input_data
 - `chunk_article` fans out summarization before `index_article`
 

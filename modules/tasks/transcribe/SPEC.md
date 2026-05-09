@@ -4,7 +4,7 @@
 Runs whisper.cpp on an audio file to produce a full transcript.
 
 ## Pool
-none; submits whisper work to `cuda_pool`
+cuda
 
 ## Input (direct)
 ```
@@ -40,6 +40,7 @@ Nothing. (index_video task is created upfront by download_subtitles.)
 - Raises `ValueError` if no `audio_path` is found
 - whisper output written to a `tempfile.TemporaryDirectory` as `out.srt`
 - Raises `RuntimeError` if whisper returns non-zero or output file missing
+- Runs whisper directly inside the cuda worker assigned by `POOL = "cuda"`
 - Whisper flags: `-osrt -of {out_base} --language auto -ng`
 
 ## Must NOT

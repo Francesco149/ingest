@@ -4,7 +4,7 @@
 Summarizes a single chunk of article text for semantic search.
 
 ## Pool
-none
+vision
 
 ## Input
 ```
@@ -19,3 +19,5 @@ summary  str  semantic-search-oriented chunk summary
 
 ## Behavior Rules
 - Prompt text comes from `config["prompts"]["text_chunk_summary"]`.
+- LLM work runs under the `vision` pool so article chunk summaries respect
+  reasoning-model concurrency limits.

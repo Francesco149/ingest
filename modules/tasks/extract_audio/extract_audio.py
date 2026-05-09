@@ -1,6 +1,6 @@
 """
 Task: extract_audio
-Pool: (none; submits ffmpeg to cpu_pool)
+Pool: cpu
 Purpose: Extracts 16kHz mono WAV audio from a video file using ffmpeg.
 Input:
     video_path  str  path to the downloaded video file
@@ -18,12 +18,13 @@ Creates: nothing
 
 import logging
 import subprocess
+from pathlib import Path
 from typing import Dict, Any
 
 from modules.task_manager.task_manager import Task
 
 log = logging.getLogger("task_extract_audio")
-POOL = None
+POOL = "cpu"
 
 
 async def run(task: Task, context: Dict[str, Any], input_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -39,17 +40,15 @@ async def run(task: Task, context: Dict[str, Any], input_data: Dict[str, Any]) -
     try:
         video_path = input_data["video_path"]
         audio_path = input_data["audio_path"]
-        pool       = context["cpu_pool"]
 
-        log.info(f"Extracting audio: {video_path} → {audio_path}")
-
-        def _run():
-            subprocess.run([
-                config["paths"]["ffmpeg_bin"], "-i", video_path,
-                "-ar", "16000", "-ac", "1", "-y", audio_path,
-            ], capture_output=True, check=True)
-
-        await pool.submit(_run, label=f"extract_audio:{video_path}")
+        log.info(
+            f"Extracting audio for slug={url_slug}: "
+            f"{Path(video_path).name} -> {Path(audio_path).name}"
+        )
+        subprocess.run([
+            config["paths"]["ffmpeg_bin"], "-i", video_path,
+            "-ar", "16000", "-ac", "1", "-y", audio_path,
+        ], capture_output=True, check=True)
 
         return {"audio_path": audio_path, "url": url, "url_slug": url_slug, "desc_task_ids": desc_task_ids, "metadata": metadata}
     except Exception as e:

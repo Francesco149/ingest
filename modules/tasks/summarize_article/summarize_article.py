@@ -1,3 +1,20 @@
+"""
+Task: summarize_article
+Pool: vision
+Input:
+    url       str  original article URL
+    url_slug  str  url slug (mandatory)
+    title     str  article title
+    content   str  full article Markdown
+Input (via dep_ enrichment from summarize_text_chunk):
+    summary   str  chunk summary text
+Output:
+    url_slug  str  url slug (mandatory)
+    summary   str  final article summary
+Creates:
+    index_article  — one task with article content and final summary
+"""
+
 import logging
 import re
 from typing import Any, Dict
@@ -5,6 +22,7 @@ from modules.task_manager.task_manager import Task
 from modules.llm_openai import chat
 
 logger = logging.getLogger(__name__)
+POOL = "vision"
 
 async def run(task: Task, context: Dict[str, Any], input_data: Dict[str, Any]) -> Dict[str, Any]:
     """

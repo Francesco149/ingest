@@ -4,7 +4,7 @@
 Reduces chunk summaries into one article summary and creates `index_article`.
 
 ## Pool
-none
+vision
 
 ## Input
 ```
@@ -28,3 +28,4 @@ summary   str  final article summary
 - If there is one chunk summary, use it directly.
 - If there are multiple chunk summaries, combine them with
   `config["prompts"]["article_summary"]`.
+- Article-level reduction also runs under the `vision` pool.

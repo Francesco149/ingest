@@ -1,6 +1,6 @@
 """
 Task: transcribe
-Pool: (none; submits whisper to cuda_pool)
+Pool: cuda
 Input:
     url_slug        str  mandatory url slug
     audio_path      str  path to the 16kHz mono WAV produced by extract_audio
@@ -26,12 +26,11 @@ from typing import Dict, Any
 from modules.task_manager.task_manager import Task
 
 log = logging.getLogger("task_transcribe")
-POOL = None
+POOL = "cuda"
 
 
 async def run(task: Task, context: Dict[str, Any], input_data: Dict[str, Any]) -> Dict[str, Any]:
     config = context["config"]
-    pool   = context["cuda_pool"]
 
     url_slug = input_data["url_slug"]
     dep_outputs = [
@@ -56,26 +55,23 @@ async def run(task: Task, context: Dict[str, Any], input_data: Dict[str, Any]) -
     if not audio_path:
         raise ValueError("transcribe task: no audio_path in input or dep_ enrichment")
 
-    log.info(f"Starting transcribe for slug: {url_slug}")
+    log.info(f"Starting transcribe for slug={url_slug}: audio={Path(audio_path).name}")
 
-    def _run():
-        with tempfile.TemporaryDirectory() as tmp:
-            out_base = os.path.join(tmp, "out")
-            r = subprocess.run([
-                config["paths"]["whisper_bin"],
-                "-m", config["paths"]["whisper_model"],
-                "-f", audio_path,
-                "-osrt", "-of", out_base,
-                "--language", "auto",
-                "-ng",
-            ], capture_output=True, text=True)
-            if r.returncode != 0:
-                raise RuntimeError(f"whisper failed: {r.stderr}")
-            srt = Path(out_base + ".srt")
-            if not srt.exists():
-                raise RuntimeError("whisper produced no output file")
-            return srt.read_text(encoding="utf-8").strip()
-
-    transcript = await pool.submit(_run, label=f"whisper:{Path(audio_path).name}")
+    with tempfile.TemporaryDirectory() as tmp:
+        out_base = os.path.join(tmp, "out")
+        r = subprocess.run([
+            config["paths"]["whisper_bin"],
+            "-m", config["paths"]["whisper_model"],
+            "-f", audio_path,
+            "-osrt", "-of", out_base,
+            "--language", "auto",
+            "-ng",
+        ], capture_output=True, text=True)
+        if r.returncode != 0:
+            raise RuntimeError(f"whisper failed: {r.stderr}")
+        srt = Path(out_base + ".srt")
+        if not srt.exists():
+            raise RuntimeError("whisper produced no output file")
+        transcript = srt.read_text(encoding="utf-8").strip()
     
     return {"url_slug": url_slug, "transcript": transcript, "desc_task_ids": desc_task_ids, "metadata": metadata}

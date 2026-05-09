@@ -4,7 +4,7 @@
 Extracts 16kHz mono WAV audio from a video file using ffmpeg.
 
 ## Pool
-none; submits ffmpeg work to `cpu_pool`
+cpu
 
 ## Input
 ```
@@ -27,7 +27,7 @@ Nothing. (transcribe task is created upfront by download_subtitles.)
 
 ## Behavior Rules
 - ffmpeg command: `-ar 16000 -ac 1 -y {audio_path}`
-- Runs synchronously in a thread via `pool.submit`
+- Runs ffmpeg directly inside the cpu worker assigned by `POOL = "cpu"`
 - Raises `subprocess.CalledProcessError` if ffmpeg fails (task marked FAILED)
 
 ## Must NOT
