@@ -10,12 +10,12 @@ Downloads videos and articles, processes them with local AI (llama-video for fra
 POST /ingest
     │
     ▼
-api.py ──► engine.py ──► task_manager.create_task("download_video" | "download_article")
+api.py ──► engine.py ──► task_manager.create_task("download_video" | "download_article" | "download_manga")
                 │
                 └── task_manager (SQLite DAG scheduler, 1s poll loop)
                         │
                         ├── tasks/download_video.py        (download pool)
-                        │       ├── tasks/describe_single_chunk.py × N  (vision pool)
+                        │       ├── tasks/describe_single_chunk.py × N  (cuda pool)
                         │       └── tasks/download_subtitles.py          (download pool)
                         │               ├── [subs found] → tasks/index_video.py
                         │               └── [no subs]   → tasks/extract_audio.py
@@ -24,7 +24,16 @@ api.py ──► engine.py ──► task_manager.create_task("download_video" |
                         │
                         └── tasks/download_article.py      (download pool)
                                 └── tasks/extract_article_content.py   (cpu pool)
-                                        └── tasks/index_article.py
+                                        └── tasks/chunk_article.py
+                                                └── tasks/summarize_text_chunk.py × N
+                                                        └── tasks/summarize_article.py
+                                                                └── tasks/index_article.py
+                        │
+                        └── tasks/download_manga.py        (download pool)
+                                └── tasks/describe_manga_page.py × N
+                                        └── tasks/summarize_manga.py × N
+                                                └── tasks/transcribe_manga.py × N
+                                                        └── tasks/index_manga.py
 ```
 
 ### Key principles
@@ -36,6 +45,10 @@ api.py ──► engine.py ──► task_manager.create_task("download_video" |
 **No processing logic in `engine.py`.** Engine owns: pool lifecycle, config loading, `ffprobe` helper, and the two HTTP handler entry points.
 
 **Fetcher is split by concern.** Each fetcher file handles exactly one transport (URL utils, video download, subtitle download, article HTTP). Tasks import only the fetcher they need.
+
+**Prompts are configuration.** Durable prompt text lives in
+`config.example.toml` under `[prompts.*]`; task code only formats configured
+templates with source content.
 
 ---
 
@@ -74,13 +87,34 @@ Spec for each module: `modules/<module>/SPEC.md`
 
 ```
 download_video
-├── describe_single_chunk × N   (one per chunk_duration seconds)
+├── describe_single_chunk × N   (cuda; one per chunk_duration seconds)
 └── download_subtitles
         ├── [subs found]  → index_video  ←─── describe_single_chunk[*]
         └── [no subs]     → extract_audio → transcribe → index_video ←─── describe_single_chunk[*]
 ```
 
 `index_video` always waits for all chunk tasks regardless of which transcript path was taken. `desc_task_ids` flow from `download_video` output → `download_subtitles` dep_ enrichment → `index_video` dependencies.
+
+## Article ingestion DAG
+
+```
+download_article
+└── extract_article_content
+        └── chunk_article
+                ├── summarize_text_chunk × N
+                └── summarize_article ←── summarize_text_chunk[*]
+                        └── index_article
+```
+
+## Manga ingestion DAG
+
+```
+download_manga
+├── describe_manga_page × N
+└── summarize_manga × N ←── describe_manga_page[*]
+        └── transcribe_manga
+                └── index_manga ←── transcribe_manga[*]
+```
 
 ## Known issues (open)
 

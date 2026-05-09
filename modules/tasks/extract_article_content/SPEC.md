@@ -1,7 +1,7 @@
 # tasks/extract_article_content
 
 ## Purpose
-Parses raw article HTML into clean Markdown and creates the index_article task.
+Parses raw article HTML into clean Markdown and creates the chunk_article task.
 
 ## Pool
 cpu
@@ -16,21 +16,19 @@ note  str  optional user note
 
 ## Output
 ```
-text_len      int  character count of extracted text
-index_task_id str  ID of the created index_article task
-url_slug      str (mandatory)
+url_slug      str  url slug (mandatory)
 ```
 
 ## Creates
-- `index_article` — one; no dependencies (content is passed directly in input_data)
+- `chunk_article` — one; content and metadata are passed directly in input_data
 
 ## Imports From
 - `task_manager`: `Task`
 - `parser`: `extract_content` (called via pool.submit)
 
 ## Behavior Rules
-- Filename: `{date}-article-{domain}-{slug[:40]}.md` where slug is the last path segment of the URL
-- Full markdown content is passed directly into `index_article` input_data (not via dep_ enrichment) because it is built inline here
+- Full markdown content is passed directly into `chunk_article` input_data
+- `chunk_article` fans out summarization before `index_article`
 
 ## Must NOT
 - Import from any fetcher module

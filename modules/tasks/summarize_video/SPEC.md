@@ -23,3 +23,6 @@ Synthesizes visual descriptions and transcripts into a coherent narrative summar
 - `download_video` (via `url_slug`)
 - `describe_single_chunk` (via `desc_task_ids`)
 - `transcribe` (via `transcript`)
+
+## Behavior Rules
+- Prompt text comes from `config["prompts"]["video_summarize"]`.

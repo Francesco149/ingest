@@ -4,7 +4,7 @@
 Extracts 16kHz mono WAV audio from a video file using ffmpeg.
 
 ## Pool
-cpu
+none; submits ffmpeg work to `cpu_pool`
 
 ## Input
 ```

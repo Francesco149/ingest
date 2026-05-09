@@ -48,14 +48,22 @@ Dependencies' `output_data` are injected into `input_data` as `dep_{task_id}` ke
 | Task type                | Pool     | Creates children                         |
 |--------------------------|----------|------------------------------------------|
 | `download_video`         | download | `describe_single_chunk` × N, `download_subtitles` |
-| `describe_single_chunk`  | vision   | nothing                                  |
+| `describe_single_chunk`  | cuda     | nothing                                  |
 | `download_subtitles`     | download | `index_video` + optionally `extract_audio`, `transcribe` |
-| `extract_audio`          | cpu      | nothing                                  |
-| `transcribe`             | cuda     | nothing                                  |
+| `extract_audio`          | —        | nothing; submits ffmpeg work to `cpu_pool` |
+| `transcribe`             | —        | nothing; submits whisper work to `cuda_pool` |
 | `index_video`            | —        | nothing                                  |
-| `download_article`       | download | *(not yet implemented in engine)*        |
-| `extract_article_content`| cpu      | `index_article`                          |
+| `download_article`       | download | `extract_article_content`                |
+| `extract_article_content`| cpu      | `chunk_article`                          |
+| `chunk_article`          | —        | `summarize_text_chunk` × N, `summarize_article` |
+| `summarize_text_chunk`   | —        | nothing                                  |
+| `summarize_article`      | —        | `index_article`                          |
 | `index_article`          | —        | nothing                                  |
+| `download_manga`         | download | `describe_manga_page` × N, `summarize_manga` × N, `transcribe_manga` × N, `index_manga` |
+| `describe_manga_page`    | vision   | nothing                                  |
+| `summarize_manga`        | vision   | nothing                                  |
+| `transcribe_manga`       | vision   | nothing                                  |
+| `index_manga`            | cpu      | nothing                                  |
 
 ---
 
@@ -100,13 +108,9 @@ ffmpeg -i {video} -ss {start} -t {duration} -vf scale=-1:540
 
 **Frame extraction:** `llama_video.Extractor` at `config.processing.fps` (default 2.0), max 64 frames, collapsed into super-frames by `Preprocessor`.
 
-**Captioning prompt** (in `tasks/describe_single_chunk.py`):
-```
-Explain what happens in this video, no preamble, no outro.
-This is part of a longer video, so don't say "at the end of the video" or
-"the last scene", just explain what happens. No "the video shows/contains" either.
-Don't overthink it, just loosely describe the action.
-```
+**Captioning prompt:** `config.toml` / `config.example.toml`
+`[prompts.video_describe].user`. All durable LLM prompt text belongs under
+`[prompts.*]` config sections.
 
 **Audio extraction:**
 ```
@@ -124,7 +128,7 @@ ffmpeg -i {video} -ar 16000 -ac 1 -y {audio.wav}
 knowledge_dir   = "/opt/ai-lab/knowledge"
 knowledge_index = "/opt/ai-lab/knowledge/.index.json"
 whisper_bin     = "/opt/ai-lab/whisper.cpp/build/bin/whisper-cli"
-whisper_model   = "/opt/ai-lab/whisper.cpp/models/ggml-medium.bin"
+whisper_model   = "/opt/ai-lab/models/whisper/ggml-medium.bin"
 db_path         = "/opt/ai-lab/data/ingest.db"
 downloads_dir   = "/opt/ai-lab/downloads"        # optional, defaults to knowledge_dir/downloads
 
@@ -143,6 +147,17 @@ vision   = 2
 [processing]
 chunk_duration = 30    # seconds per describe_single_chunk task
 fps            = 2.0   # frames per second for llama-video extraction
+
+[prompts.video_describe]
+user = "..."
+
+[prompts.manga_describe]
+system = "..."
+user_template = "..."
+
+[prompts.manga_summarize]
+system = "..."
+instructions = "..."
 
 [server]
 port = 8083

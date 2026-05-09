@@ -4,7 +4,7 @@
 Indexes manga gallery content into the RAG knowledge base.
 
 ## Pool
-rag
+cpu
 
 ## Input
 ```

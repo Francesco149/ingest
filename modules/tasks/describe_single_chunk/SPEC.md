@@ -19,7 +19,7 @@ retriable   bool  always True — transient llama-server errors are retried on r
 
 ## Output
 ```
-descriptions  str  "#### MM:SS - MM:SS\n\n{caption}"
+description   str  "#### MM:SS - MM:SS\n\n{caption}"
 start_ts      int  echoed for deterministic ordering in index_video
 url           str  echoed URL
 url_slug      str  echoed url slug (mandatory)
@@ -38,6 +38,7 @@ Nothing.
 - `LLAMA_SERVER_URL` env var is set from `config["api"]["llama_base"]` before creating the client
 - On exception: `client.close()` is called then the exception is re-raised so task_manager marks FAILED and retries on next restart
 - `prompt_id` includes clip path, prompt, and timestamp range to prevent the LLM from reusing a cached response across chunks
+- Default prompt text comes from `config["prompts"]["video_describe"]["user"]`
 
 ## Must NOT
 - Write clips outside a temporary directory

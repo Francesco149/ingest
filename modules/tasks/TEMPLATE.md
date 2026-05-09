@@ -3,7 +3,8 @@
 [Brief description of what this task does]
 
 ## Pool
-`POOL = "[pool_name]"` (e.g., "download", "cpu", "cuda", "vision")
+`POOL = "[pool_name]"` (e.g., "download", "cpu", "cuda", "vision") or `None`
+when the task manages its own pool submissions internally.
 
 ## Schema
 ### Input
