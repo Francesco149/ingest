@@ -40,7 +40,12 @@ passing.
   - `tests/fixtures/synthetic_video.py`
   - 6s, 10fps, `960x540`
   - Ria moves toward a blue key; Kai opens a red door
-  - espeak-ng TTS says: "Ria sees the blue key. Kai opens the red door."
+  - espeak-ng TTS says only generic narration:
+    "This is my stickman animation. Pay close attention to it."
+  - audio is padded to the full 6s duration so the muxed MP4 keeps the final
+    Kai-opens-door visual state.
+  - The audio deliberately does not mention the key or door; the visual test
+    must get those details from video understanding.
   - `tests/test_synthetic_video_fixture.py` verifies generation and resolution.
 - Video audio/Whisper integration:
   - `INGEST_RUN_ENDPOINT_TESTS=1 pytest tests/integration/test_video_endpoint_fixture.py::test_synthetic_video_audio_transcribes_with_whisper -q -s`
@@ -52,6 +57,7 @@ passing.
     "Describe the visible events in the video."
   - Full video integration file passed:
     `INGEST_RUN_ENDPOINT_TESTS=1 INGEST_RUN_LLAMA_VIDEO_TEST=1 pytest tests/integration/test_video_endpoint_fixture.py -q -s`
+  - Passed after generic audio/duration fix in about 101 seconds.
 
 ## Remaining Tests
 - None currently identified. If llama-video output becomes brittle, add optional

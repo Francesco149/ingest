@@ -85,9 +85,10 @@ def test_synthetic_video_audio_transcribes_with_whisper(tmp_path):
         )
 
         transcript = transcript_output["transcript"].lower()
-        assert "blue" in transcript
-        assert "key" in transcript
-        assert "door" in transcript
+        assert "animation" in transcript
+        assert "attention" in transcript
+        assert "blue" not in transcript
+        assert "door" not in transcript
         assert transcript_output["desc_task_ids"] == ["desc-1"]
 
     asyncio.run(scenario())

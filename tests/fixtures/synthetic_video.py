@@ -12,7 +12,7 @@ WIDTH = 960
 HEIGHT = 540
 FPS = 10
 DURATION_SECONDS = 6
-TRANSCRIPT = "Ria sees the blue key. Kai opens the red door."
+TRANSCRIPT = "This is my stickman animation. Pay close attention to it."
 
 
 def _draw_frame(path: Path, frame_index: int):
@@ -92,6 +92,10 @@ def generate_synthetic_video_fixture(output_dir: Path) -> dict:
             "-y",
             "-i",
             str(speech_wav),
+            "-af",
+            "apad",
+            "-t",
+            str(DURATION_SECONDS),
             "-ar",
             "16000",
             "-ac",
@@ -132,7 +136,6 @@ def generate_synthetic_video_fixture(output_dir: Path) -> dict:
             "copy",
             "-c:a",
             "aac",
-            "-shortest",
             str(video_path),
         ],
         check=True,
