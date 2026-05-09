@@ -35,20 +35,23 @@ def endpoint_config(tmp_path):
             "manga_describe": {
                 "system": (
                     "You describe synthetic manga pages for an ingestion regression test. "
-                    "Use page indices from the prompt, not visible scan page markings."
+                    "Use page indices from the prompt, not small corner page markings. "
+                    "Do not mention visual page markings."
                 ),
                 "user_template": (
                     "Describe image pages {start}-{end}. These prompt page indices are "
-                    "the ground truth. Visible scan page markings may be deliberately "
-                    "wrong; ignore those visible markings. "
+                    "the ground truth. Small corner page numbers printed on the image "
+                    "may be deliberately wrong; ignore those visual page markings and "
+                    "do not mention them in your answer. "
                     "Capture captions, dialogue, and major actions."
                 ),
             },
             "manga_summarize": {
                 "system": "Summarize manga page descriptions for semantic retrieval.",
                 "instructions": (
-                    "Preserve the prompt-provided page order. Do not treat visible scan "
-                    "page markings as canonical page order."
+                    "Preserve the prompt-provided page order. Do not treat small corner "
+                    "page markings as canonical page order, and do not mention those "
+                    "visual markings."
                 ),
                 "user_template": (
                     "Title: {title}\nTags: {tags}\nInstructions: {instructions}\n"
@@ -164,9 +167,8 @@ def test_generated_manga_fixture_against_local_llm_endpoints(tmp_path, monkeypat
         assert "key" in combined
         assert "door" in combined
         assert "star" in combined
-        assert "ignore" in combined or "ground truth" in combined
-        assert "scan page 99" not in summary["reasoning_text"].lower()
-        assert "scan page 42" not in summary["reasoning_text"].lower()
+        assert "99" not in combined
+        assert "42" not in combined
 
         if os.environ.get("INGEST_USE_EMBEDDING_ASSERTIONS") == "1":
             expected = "\n".join(fixture["expected_summary_points"])

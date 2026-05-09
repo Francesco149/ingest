@@ -63,7 +63,7 @@ slower endpoint-backed integration tests using generated dummy data.
   - Pillow-based PNG generator under `tests/fixtures/synthetic_manga.py`
   - uses a DejaVu TTF from the Nix shell/store when available for clearer OCR
   - produces three deterministic manga-style pages plus `reference.json`
-  - visible scan page markings are deliberately wrong (`99`, `7`, `42`); the
+  - small corner page markings are deliberately wrong (`99`, `7`, `42`); the
     ground-truth page range exists only in the prompt formatted by task code
   - fixture wording avoids ambiguous glyphs that local OCR confused in early
     endpoint runs.

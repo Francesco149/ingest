@@ -10,7 +10,7 @@ def test_synthetic_manga_fixture_generation_is_deterministic(tmp_path):
     assert [page["story_page"] for page in first["pages"]] == [1, 2, 3]
     assert [page["visible_page_number"] for page in first["pages"]] == [99, 7, 42]
     assert first["expected_summary_points"][-1] == (
-        "Visible scan page markings 99, 7, and 42 are not story order."
+        "Small corner page markings 99, 7, and 42 are not story order."
     )
 
     first_images = [path.read_bytes() for path in (tmp_path / "first").glob("*.png")]

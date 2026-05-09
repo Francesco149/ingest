@@ -61,11 +61,12 @@ def _draw_page(path: Path, page: dict):
     draw = ImageDraw.Draw(image)
     title_font = _font(30)
     label_font = _font(22)
+    marking_font = _font(28)
     bubble_font = _font(34)
     caption_font = _font(40)
 
     draw.rectangle((18, 18, 701, 981), outline=(0, 0, 0), width=4)
-    draw.text((38, 35), f"SCAN PAGE {page['visible_page_number']}", font=title_font, fill=(0, 0, 0))
+    draw.text((648, 932), str(page["visible_page_number"]), font=marking_font, fill=(0, 0, 0))
 
     panels = [(55, 130, 665, 395), (55, 430, 665, 710), (55, 745, 665, 945)]
     for panel in panels:
@@ -126,7 +127,7 @@ def generate_synthetic_manga_fixture(output_dir: Path) -> dict:
             "Ria finds a key.",
             "The key opens a door.",
             "Ria finds a star map.",
-            "Visible scan page markings 99, 7, and 42 are not story order.",
+            "Small corner page markings 99, 7, and 42 are not story order.",
         ],
     }
     (output_dir / "reference.json").write_text(json.dumps(reference, indent=2), encoding="utf-8")
