@@ -1,25 +1,37 @@
-# Task: download_subtitles
-Pool: download
-Purpose: Downloads subtitles for a video and branches the DAG: with subs → index_video; without subs → extract_audio → transcribe → index_video.
+# tasks/download_subtitles
 
-Input:
-    url         str   original video URL
-    url_slug    str   (mandatory) 8-char slug matching the video download (for subdir isolation)
-    target_path str   base directory for subtitle subdirectories (sub_dir)
-    video_path  str   path to the downloaded video (for audio extraction fallback)
-    desc_task_ids  list[str]  IDs of all describe_single_chunk tasks (via dep_ enrichment)
-    meta           dict       video metadata from yt-dlp (via dep_ enrichment)
+## Purpose
+Downloads subtitles for a video and branches the DAG: with subtitles,
+`summarize_video -> index_video`; without subtitles,
+`extract_audio -> transcribe -> summarize_video -> index_video`.
 
-Output:
-    sub_result      tuple[str, str] | None   (transcript_text, source) or None
-    index_task_id   str   ID of the created index_video task
-    audio_task_id   str   ID of the created extract_audio task (no-subs path only)
-    url_slug        str   (mandatory) primary identifier for tasks associated with the URL
+## Pool
+download
 
-Creates:
-    index_video     — always; deps vary by path
-    extract_audio   — no-subs path only; dep: this task
-    transcribe      — no-subs path only; dep: extract_audio
+## Input
+```
+url            str        original video URL
+url_slug       str        mandatory URL slug
+target_path    str        base directory for subtitle subdirectories
+video_path     str        path to downloaded video for audio fallback
+desc_task_ids  list[str]  IDs of all describe_single_chunk tasks
+metadata       dict       video metadata from yt-dlp
+```
+
+## Output
+```
+transcript           list[dict] | None  subtitle segments if found
+summarize_task_ids   list[str]          created summarize_video task IDs, subs path only
+index_task_id        str                created index_video task ID
+audio_task_id        str                created extract_audio task ID, no-subs path only
+url_slug             str                mandatory URL slug
+```
+
+## Creates
+- `summarize_video` — always; deps vary by path
+- `index_video` — always; deps vary by path
+- `extract_audio` — no-subs path only; dep: this task
+- `transcribe` — no-subs path only; dep: extract_audio
 
 ## Imports From
 - `fetcher_subtitles`: `download_subtitles`
@@ -27,8 +39,10 @@ Creates:
 
 ## Behavior Rules
 - `url_slug` is passed through to `fetcher_subtitles` so it can write to a per-video subdir
-- `desc_task_ids` are extracted from the single `dep_*` dict in `input_data`
-- The full no-subs DAG (audio + transcribe + index) is created upfront so the graph is visible immediately
+- Caption path: `summarize_video` depends on this task and all description tasks;
+  `index_video` depends on this task, the summary task, and all description tasks.
+- No-caption path: full fallback DAG is created upfront so the graph is visible
+  immediately.
 
 ## Must NOT
 - Import from `fetcher_video`, `parser`, or `indexer`

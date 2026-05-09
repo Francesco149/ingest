@@ -4,7 +4,8 @@
 ## Current Focus
 Build testing infrastructure one path at a time. Use isolated temp paths and
 mocked services; never use production config, production DB, production
-knowledge dirs, or private APIs in tests.
+knowledge dirs, or private APIs in tests. Current next path after video smoke:
+manga pipeline tests with mocked private API and generated dummy images.
 
 ## Environment
 - Use `nix-shell` from the repo root.
@@ -32,22 +33,26 @@ knowledge dirs, or private APIs in tests.
   - `fetcher_subtitles.download_subtitles`
   - `fetcher_article.download_article`
   - All external I/O mocked; no network or real downloads.
+- Indexer/RAG/article smoke tests added and committed:
+  - `indexer.save_and_upload` replacement cleanup with temp knowledge dirs
+  - `rag_client.upload_to_rag` mocked `httpx` upload/poll/add flow
+  - Article task path through download, extract, chunk, summarize, and index
+    with parser, LLM, and RAG upload mocked.
+- `AGENTS.md` commit convention clarified: the configured git author should not
+  be duplicated as a `Co-authored-by` trailer.
+- Video task smoke tests added:
+  - `download_video` chunk fan-out and subtitle task creation
+  - `download_subtitles` captions and no-captions fallback branches
+  - `extract_audio` ffmpeg command and `transcribe` Whisper command/deps
+  - `summarize_video` and `index_video` dep-output assembly with LLM/RAG mocked
+  - Video task specs updated where they had drifted from current behavior.
 
 ## Next Recommended Tests
-1. Commit current fetcher smoke test if not already committed.
-2. Add indexer/RAG client smoke tests using temp knowledge dirs and mocked
-   `httpx` calls.
-3. Add task-level smoke tests for article path:
-   `download_article -> extract_article_content -> chunk_article ->
-   summarize_text_chunk -> summarize_article -> index_article`, with LLM and RAG
-   upload mocked.
-4. Add video fallback tests later:
-   - captions path with mocked subtitle segments
-   - no-captions Whisper path using temp DB/dirs and local model path
-     `/opt/ai-lab/models/whisper/ggml-medium.bin`
-5. Add manga pipeline test later with a mock private API and generated dummy
+1. Add manga pipeline test with a mock private API and generated dummy
    images. Include deliberately wrong visible page numbers in images to verify
    prompt behavior asks the model to ignore visual page markings.
+2. Add slower optional no-captions Whisper integration using temp DB/dirs and
+   local model path `/opt/ai-lab/models/whisper/ggml-medium.bin`.
 
 ## Open Questions
 - How strict should semantic/LLM correctness checks be? Candidate approach:
