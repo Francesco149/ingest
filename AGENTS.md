@@ -69,15 +69,17 @@ before it can be treated as covered. The local Whisper model for that path is:
 
 ## Commit Convention
 
-When asked to commit, include all human/agent authors using git trailers:
+When asked to commit, use the configured git author as the commit author. Add
+`Co-authored-by` trailers only for additional contributors that are not already
+the commit author.
 
 ```text
-Co-authored-by: Name <email>
 Co-authored-by: Codex <codex@openai.com>
 ```
 
-If the user's preferred name/email is unknown, ask before committing. Do not
-invent a human email. Keep commit messages short and behavior-focused.
+If a human co-author beyond the configured git author is required and their
+preferred name/email is unknown, ask before committing. Do not invent a human
+email. Keep commit messages short and behavior-focused.
 
 ## Code Map
 
