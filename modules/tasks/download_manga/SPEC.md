@@ -33,7 +33,8 @@ image_info        list[dict] list of image information (path, url, etc.)
 - Creates `describe_manga_page` tasks per chunk, then batches these into `summarize_manga` tasks, followed by `transcribe_manga` tasks.
 - `summarize_manga` depends on a batch of `describe_manga_page` tasks; `transcribe_manga` depends on its `summarize_manga` task.
 - `index_manga` task is created at the end, depending on all `transcribe_manga` tasks.
-- Uses `download_pool` for the fetcher.
+- Runs on the download pool via `POOL = "download"`; does not submit additional
+  work to worker pools.
 
 ## Must NOT
 - Import from `engine` directly (use `context`).

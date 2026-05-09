@@ -140,6 +140,9 @@ SQLite table `tasks`:
 - **Video download:** `yt-dlp -S res:720 --format bestvideo[height<=1080]+bestaudio/best`, falls back to `best`
 - **Subtitles:** manual subs first, then auto-generated; `--sub-lang en --sub-format vtt`
 - **Article fetch:** `httpx` with a browser User-Agent, `follow_redirects=True`
+- **Manga fetch:** `httpx` metadata and page-image downloads run inside the
+  `download_manga` task's download worker; the fetcher does not submit nested
+  worker-pool jobs.
 
 ---
 

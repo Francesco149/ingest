@@ -27,7 +27,7 @@ import math
 from pathlib import Path
 from typing import Dict, Any
 
-from modules.task_manager.task_manager import Task, TaskStatus
+from modules.task_manager.task_manager import Task
 from modules.fetcher_manga.fetcher_manga import fetch_gallery
 
 log = logging.getLogger('task_download_manga')
@@ -55,12 +55,9 @@ async def run(task: Task, context: Dict[str, Any], input_data: Dict[str, Any]) -
 
     log.info(f"Starting download_manga for slug: {url_slug}")
 
-    # Use the fetcher to download everything
-    # We assume context['pool'] contains the pool.
-    pool = context['download_pool']
     task_manager = context['task_manager']
     
-    result = await fetch_gallery(gallery_id, download_dir, pool, context['config'])
+    result = await fetch_gallery(gallery_id, download_dir, context['config'])
     image_info = result['image_info']
     metadata = result['metadata']
     log.info(f'Successfully downloaded {len(image_info)} images for gallery {gallery_id}')

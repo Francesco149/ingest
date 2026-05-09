@@ -2,12 +2,11 @@ import logging
 import httpx
 import asyncio
 from pathlib import Path
-from modules.worker_pool.worker_pool import WorkerPool
 from modules.task_manager.task_manager import RateLimitError
 
 log = logging.getLogger('modules.fetcher_manga.fetcher_manga')
 
-async def fetch_gallery(gallery_id: str, download_dir: str, pool: WorkerPool, config: dict) -> dict:
+async def fetch_gallery(gallery_id: str, download_dir: str, config: dict) -> dict:
     """
     Fetches gallery metadata and downloads all images.
     """
@@ -48,8 +47,7 @@ async def fetch_gallery(gallery_id: str, download_dir: str, pool: WorkerPool, co
                     raise RateLimitError()
                 raise
             
-            with open(p, 'wb') as f:
-                f.write(img_resp.content)
+            p.write_bytes(img_resp.content)
             return str(p)
 
         for i, page in enumerate(pages):
@@ -68,13 +66,13 @@ async def fetch_gallery(gallery_id: str, download_dir: str, pool: WorkerPool, co
                 log.info(f"File already exists: {file_path}, skipping download.")
                 continue
 
-            async def wrapped_download(u=url, p=file_path):
-                return await _download_task(u, p)
-
-            tasks.append(pool.submit(wrapped_download, label=f"dl_img:{i:03d}"))
+            task = asyncio.create_task(_download_task(url, file_path))
+            task.set_name(f"dl_img:{i:03d}")
+            tasks.append(task)
             task_to_info_map.append(len(image_info) - 1)
 
-        # Await all submitted tasks
+        # Keep page downloads inside this task's download worker. Do not submit
+        # nested jobs to worker pools; the task manager owns pool scheduling.
         if tasks:
             downloaded_paths = await asyncio.gather(*tasks)
             

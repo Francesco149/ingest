@@ -1,6 +1,5 @@
 import asyncio
 import base64
-import inspect
 import sys
 import types
 from pathlib import Path
@@ -22,14 +21,6 @@ PNG_BYTES = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ"
     "l8nF0GQAAAABJRU5ErkJggg=="
 )
-
-
-class ImmediatePool:
-    async def submit(self, fn, label=""):
-        result = fn()
-        if inspect.isawaitable(result):
-            return await result
-        return result
 
 
 class RecordingTaskManager:
@@ -107,15 +98,13 @@ def test_download_manga_fans_out_overlapping_batches_and_index(tmp_path, monkeyp
         manager = RecordingTaskManager()
         context = {
             "task_manager": manager,
-            "download_pool": ImmediatePool(),
             "config": manga_config(tmp_path),
         }
         page_paths = [str(tmp_path / f"page-{idx}.jpg") for idx in range(4)]
 
-        async def fake_fetch_gallery(gallery_id, download_dir, pool, config):
+        async def fake_fetch_gallery(gallery_id, download_dir, config):
             assert gallery_id == "gallery-1"
             assert download_dir == tmp_path / "downloads" / "manga123"
-            assert isinstance(pool, ImmediatePool)
             return {
                 "metadata": manga_metadata(),
                 "image_info": [
