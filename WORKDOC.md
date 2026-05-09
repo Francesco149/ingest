@@ -2,95 +2,73 @@
 `ingest`: Python DAG-based ingestion service for articles, video, and manga.
 
 ## Current Focus
-Build testing infrastructure one path at a time. Use isolated temp paths and
-mocked services; never use production config, production DB, production
-knowledge dirs, or private APIs in tests. Fast mocked smoke coverage is now in
-place for core, fetchers, indexer/RAG, article tasks, video tasks, manga tasks,
-and deterministic synthetic fixture generation. Current next path: run and tune
-slower endpoint-backed integration tests using generated dummy data.
+The current test expansion is complete. Fast mocked tests are in place for core
+helpers, fetchers, indexer/RAG, article tasks, video tasks, manga tasks, and
+synthetic fixture generation. Manga endpoint-backed integration, video Whisper
+fallback integration, and llama-video visual integration are in place and
+passing.
 
-## Environment
+## Environment Notes
 - Use `nix-shell` from the repo root.
 - Prefer local Nix cache `https://cache.box.headpats.uk`; see `AGENTS.md`.
-- Slower endpoint-backed tests can use host-local services, accounting for the
-  sandbox/network boundary:
+- Host-local endpoints are reachable from Codex via both `localhost` and
+  `10.0.10.56`:
   - reasoning LLM: `http://localhost:8080`
   - llama-video: `http://localhost:7080`
   - embeddings: `http://localhost:6080`
-- Baseline commands:
+- `shell.nix` now packages `llama-video` for local tests. The known workaround
+  is active: ffmpeg/ffprobe are symlinked into `/tmp/ffbins`, and that directory
+  is prepended to `PATH`, because `llama-video` derives ffprobe by replacing
+  `ffmpeg` in the path.
+- Whisper model for no-captions fallback:
+  `/opt/ai-lab/models/whisper/ggml-medium.bin`
+- `shell.nix` includes `espeak-ng` for deterministic TTS and `whisper-cpp` for
+  local transcription tests.
+- Slow video tests may take around 3x the fixture video length.
+- Keep generated video fixture resolution at or below 540p because the real
+  pipeline downscales chunks to 540p.
+
+## Completed Slow Coverage
+- Manga endpoint integration:
+  - `INGEST_RUN_ENDPOINT_TESTS=1 pytest tests/integration/test_manga_endpoint_fixture.py -q -s`
+  - Passed against default localhost endpoints.
+  - Optional embedding assertion also passed with
+    `INGEST_USE_EMBEDDING_ASSERTIONS=1`.
+- Synthetic manga fixture uses small misleading corner page markings. The real
+  page range exists only in the prompt, matching the real scan/page-index issue.
+- Synthetic video fixture generation:
+  - `tests/fixtures/synthetic_video.py`
+  - 6s, 10fps, `960x540`
+  - Ria moves toward a blue key; Kai opens a red door
+  - espeak-ng TTS says: "Ria sees the blue key. Kai opens the red door."
+  - `tests/test_synthetic_video_fixture.py` verifies generation and resolution.
+- Video audio/Whisper integration:
+  - `INGEST_RUN_ENDPOINT_TESTS=1 pytest tests/integration/test_video_endpoint_fixture.py::test_synthetic_video_audio_transcribes_with_whisper -q -s`
+  - Passed with `whisper-cpp` from `shell.nix` and model
+    `/opt/ai-lab/models/whisper/ggml-medium.bin`.
+- Video visual/llama-video integration:
+  - `INGEST_RUN_ENDPOINT_TESTS=1 INGEST_RUN_LLAMA_VIDEO_TEST=1 pytest tests/integration/test_video_endpoint_fixture.py::test_synthetic_video_visual_understanding_with_llama_video -q -s`
+  - Passed against `localhost:7080` with a neutral prompt:
+    "Describe the visible events in the video."
+  - Full video integration file passed:
+    `INGEST_RUN_ENDPOINT_TESTS=1 INGEST_RUN_LLAMA_VIDEO_TEST=1 pytest tests/integration/test_video_endpoint_fixture.py -q -s`
+
+## Remaining Tests
+- None currently identified. If llama-video output becomes brittle, add optional
+  embedding assertions against `http://localhost:6080` comparing the generated
+  visual description to the synthetic video reference summary.
+
+## Baseline Verification
+- After Python edits:
   - `nix-shell --run 'python -m compileall run_api.py modules'`
-  - `nix-shell --run 'pytest tests/test_smoke_core.py tests/test_smoke_fetchers.py'`
+  - `nix-shell --run 'pytest'`
   - `git diff --check`
 
-## Completed
-- General audit/cleanup completed and committed.
-- Prompts moved into `config.example.toml` under `[prompts.*]`.
-- `AGENTS.md` added for future agent/session conventions.
-- Nix shell added with Python 3.12, pytest, and core runtime deps.
-- Core smoke tests added and committed:
-  - config loader override isolation
-  - URL helpers
-  - parser helpers
-  - batching helper
-  - worker pool
-  - temp SQLite `TaskDB`
-- Fetcher smoke tests added:
-  - `fetcher_video.get_video_metadata`
-  - `fetcher_video.download_video`
-  - `fetcher_subtitles.download_subtitles`
-  - `fetcher_article.download_article`
-  - All external I/O mocked; no network or real downloads.
-- Indexer/RAG/article smoke tests added and committed:
-  - `indexer.save_and_upload` replacement cleanup with temp knowledge dirs
-  - `rag_client.upload_to_rag` mocked `httpx` upload/poll/add flow
-  - Article task path through download, extract, chunk, summarize, and index
-    with parser, LLM, and RAG upload mocked.
-- `AGENTS.md` commit convention clarified: the configured git author should not
-  be duplicated as a `Co-authored-by` trailer.
-- Video task smoke tests added:
-  - `download_video` chunk fan-out and subtitle task creation
-  - `download_subtitles` captions and no-captions fallback branches
-  - `extract_audio` ffmpeg command and `transcribe` Whisper command/deps
-  - `summarize_video` and `index_video` dep-output assembly with LLM/RAG mocked
-  - Video task specs updated where they had drifted from current behavior.
-- Manga smoke tests added:
-  - `fetcher_manga.fetch_gallery` mocked API/image downloads and 429 handling
-  - `download_manga` overlapping page batch fan-out and index dependency shape
-  - `describe_manga_page`, `summarize_manga`, `transcribe_manga`, and
-    `index_manga` prompt/data assembly with LLM/RAG mocked
-  - Manga fetcher/task specs updated where they had drifted from current behavior.
-- Synthetic manga fixture generator added:
-  - Pillow-based PNG generator under `tests/fixtures/synthetic_manga.py`
-  - uses a DejaVu TTF from the Nix shell/store when available for clearer OCR
-  - produces three deterministic manga-style pages plus `reference.json`
-  - small corner page markings are deliberately wrong (`99`, `7`, `42`); the
-    ground-truth page range exists only in the prompt formatted by task code
-  - fixture wording avoids ambiguous glyphs that local OCR confused in early
-    endpoint runs.
-- Endpoint-backed manga integration scaffold added:
-  - opt-in with `INGEST_RUN_ENDPOINT_TESTS=1`
-  - defaults: reasoning LLM `http://localhost:8080`, llama-video
-    `http://localhost:7080`
-  - override with `INGEST_REASONING_LLM_BASE` and `INGEST_LLAMA_VIDEO_BASE`
-  - optional embedding similarity assertion with
-    `INGEST_USE_EMBEDDING_ASSERTIONS=1`; defaults to embeddings endpoint
-    `http://localhost:6080`, model `nomic-embed-text-v1.5.f16.gguf`, and
-    threshold `INGEST_EMBEDDING_MIN_SIMILARITY=0.65`
-  - normal `pytest` collects it as skipped.
-- Endpoint reachability verified from the Codex environment:
-  - `localhost` and `10.0.10.56` both reached ports `8080`, `7080`, and `6080`
-  - `INGEST_RUN_ENDPOINT_TESTS=1 pytest tests/integration/test_manga_endpoint_fixture.py -q -s`
-    passed against default `localhost` endpoints in about 65 seconds.
-
-## Next Recommended Tests
-1. Add slower no-captions Whisper integration using temp DB/dirs and
-   local model path `/opt/ai-lab/models/whisper/ggml-medium.bin`.
-2. Add optional semantic assertions using the embeddings endpoint to compare
-   generated summaries/transcripts against reference text.
-
-## Open Questions
-- How strict should semantic/LLM correctness checks be? Candidate approach:
-  deterministic mocked LLM for CI-style smoke tests, then optional local-model
-  evaluation using embeddings/similarity against reference text for manual or
-  slower integration runs.
-- Whisper/no-captions video fallback still needs an end-to-end regression case.
+## Current Git Notes
+- Last committed test work:
+  - `e124494 test: use corner page markings in manga fixture`
+  - `bd26836 test: refine manga endpoint assertions`
+  - `acc64a6 test: tune synthetic manga fixture`
+- Commit convention: use configured git author as commit author; add only
+  additional contributors as trailers. For Codex-authored commits include:
+  `Co-authored-by: Codex <codex@openai.com>`.

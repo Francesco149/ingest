@@ -41,6 +41,11 @@ python -m compileall run_api.py modules
 If `direnv` is enabled, `.envrc` runs `use nix` automatically after
 `direnv allow`. Keep `.venv/` untracked.
 
+On NixOS, Python virtualenvs that install binary wheels may need runtime
+library patching; `github:GuillaumeDesforges/fix-python` is a known option.
+For `llama-video`, prefer the service flake/package definition rather than a
+repo-local venv install.
+
 Prefer the local Nix cache when realizing shells or test dependencies:
 `https://cache.box.headpats.uk`. It is resolved on the local network via
 `10.0.10.1` to `10.0.10.53`.
