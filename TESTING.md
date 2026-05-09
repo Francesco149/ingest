@@ -13,6 +13,12 @@ yt-dlp, and a packaged `llama_video` Python module for integration tests.
 prepends `/tmp/ffbins` to `PATH`; this works around llama-video deriving
 `ffprobe` by replacing `ffmpeg` in the executable path.
 
+Agents should prefer adding missing test/runtime tools to `shell.nix`.
+`requirements.txt` is kept for humans or non-Nix development environments; it
+includes packages such as `llama-video`, but Codex/agent workflows should use
+`nix-shell`. Use a local `.venv` only for quick experiments that do not install
+binary wheels.
+
 ## Baseline
 
 Run before finishing Python or test changes:

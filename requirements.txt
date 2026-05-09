@@ -6,3 +6,4 @@ trafilatura
 opencv-python
 sqlalchemy
 pillow
+llama-video

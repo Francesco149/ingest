@@ -54,14 +54,17 @@ The project is organized into functional modules to ensure maintainability and s
    nix-shell
    ```
 
-   Then create a local virtualenv and install the necessary Python dependencies:
+   This is the preferred development and agent environment. It includes the
+   test/runtime tools used by this repo, including ffmpeg, whisper-cpp, espeak-ng,
+   and the packaged `llama_video` Python module.
+
+   For non-Nix environments, install the Python dependencies with your preferred
+   Python environment manager:
    ```bash
-   python -m venv .venv
-   . .venv/bin/activate
    pip install -r requirements.txt
    ```
 
-   The Nix shell also includes pytest and core runtime libraries for tests:
+   Run tests from the Nix shell:
    ```bash
    pytest
    ```

@@ -28,24 +28,22 @@ contracts and `TECH_SPEC.md` only for cross-module/API/config contracts.
 
 ## Testing Environment
 
-This repo is developed on NixOS. Use the repo-local `shell.nix` for a predictable
-Python/tooling baseline:
+This repo is developed on NixOS. Agents should use the repo-local `shell.nix`
+as the default environment for all tests and tooling:
 
 ```bash
 nix-shell
-python -m venv .venv
-. .venv/bin/activate
-pip install -r requirements.txt
 python -m compileall run_api.py modules
 ```
 
 If `direnv` is enabled, `.envrc` runs `use nix` automatically after
-`direnv allow`. Keep `.venv/` untracked.
+`direnv allow`.
 
-On NixOS, Python virtualenvs that install binary wheels may need runtime
-library patching; `github:GuillaumeDesforges/fix-python` is a known option.
-For `llama-video`, prefer the service flake/package definition rather than a
-repo-local venv install.
+Only use a repo-local `.venv` for quick experiments that do not pull binary
+wheels. Prefer adding missing tools or Python packages to `shell.nix` so future
+agents get the same environment. On NixOS, Python virtualenvs that install
+binary wheels may need runtime library patching; `github:GuillaumeDesforges/fix-python`
+is a known option. Keep `.venv/` untracked.
 
 Prefer the local Nix cache when realizing shells or test dependencies:
 `https://cache.box.headpats.uk`. It is resolved on the local network via
