@@ -96,6 +96,7 @@ No registration step is needed — `task_manager` imports modules by name dynami
 - Use a local `.venv` inside the Nix shell for Python dependencies from
   `requirements.txt`.
 - Run `python -m compileall run_api.py modules` after Python edits.
+- Run `pytest` for test changes and before committing behavior changes.
 - Run `git diff --check` before finishing.
 - Add focused tests when changing DAG behavior or task contracts; the
   Whisper/no-captions fallback especially needs a real integration regression.

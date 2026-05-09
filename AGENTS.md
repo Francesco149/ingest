@@ -44,6 +44,7 @@ If `direnv` is enabled, `.envrc` runs `use nix` automatically after
 Baseline checks for Python edits:
 
 - `python -m compileall run_api.py modules`
+- `pytest`
 - `git diff --check`
 
 Whisper/no-captions fallback is known to need an integration regression test
