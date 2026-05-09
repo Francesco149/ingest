@@ -1,12 +1,12 @@
 import os
 import logging
 import pathlib
-import copy
 import tomllib
 
 log = logging.getLogger("config_loader")
 
 _config = None
+PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 def deep_merge(base: dict, overrides: dict) -> dict:
     """Recursively merges two dictionaries."""
@@ -28,7 +28,7 @@ def get_config() -> dict:
         return _config
 
     # 1. Start with the example/defaults file
-    example_path = pathlib.Path("config.example.toml")
+    example_path = PROJECT_ROOT / "config.example.toml"
     if example_path.exists():
         log.info(f"Loading base configuration from: {example_path}")
         with open(example_path, "rb") as f:
@@ -40,12 +40,12 @@ def get_config() -> dict:
     # 2. Determine override path
     config_path_str = os.environ.get("INGEST_CONFIG")
     if not config_path_str:
-        local_config = pathlib.Path("config.toml")
+        local_config = PROJECT_ROOT / "config.toml"
         if local_config.exists():
             config_path_str = str(local_config.absolute())
 
     if not config_path_str:
-        config_path_str = "/opt/ai-lab/ingest/config.toml"
+        config_path_str = str(PROJECT_ROOT / "config.toml")
 
     # 3. Merge overrides
     log.info(f"Attempting to merge overrides from: {config_path_str}")

@@ -1,6 +1,6 @@
 """
 Task: extract_audio
-Pool: cpu
+Pool: (none; submits ffmpeg to cpu_pool)
 Purpose: Extracts 16kHz mono WAV audio from a video file using ffmpeg.
 Input:
     video_path  str  path to the downloaded video file
@@ -13,25 +13,24 @@ Output:
     url_slug str (mandatory)
     desc_task_ids list[str]
     metadata    dict
-Creates:
-    transcribe  — transcription task; dep: extract_audio, desc_task_ids
+Creates: nothing
 """
 
-import asyncio
 import logging
 import subprocess
 from typing import Dict, Any
 
-from modules.task_manager.task_manager import Task, task_manager
+from modules.task_manager.task_manager import Task
 
 log = logging.getLogger("task_extract_audio")
-POOL = "cpu"
+POOL = None
 
 
 async def run(task: Task, context: Dict[str, Any], input_data: Dict[str, Any]) -> Dict[str, Any]:
     # 1. Extract mandatory identifier
     url_slug = input_data["url_slug"]
     url = input_data.get("url")
+    config = context["config"]
     metadata = input_data.get("metadata", {})
     desc_task_ids = input_data.get("desc_task_ids", [])
 
@@ -50,22 +49,7 @@ async def run(task: Task, context: Dict[str, Any], input_data: Dict[str, Any]) -
                 "-ar", "16000", "-ac", "1", "-y", audio_path,
             ], capture_output=True, check=True)
 
-        loop = asyncio.get_running_loop()
-        await pool.submit(lambda: loop.run_in_executor(None, _run),
-                          label=f"extract_audio:{video_path}")
-
-        # Spawn transcribe task
-        await task_manager.create_task(
-            "transcribe",
-            input_data={
-                "url_slug": url_slug,
-                "audio_path": audio_path,
-                "desc_task_ids": desc_task_ids,
-                "metadata": metadata,
-                "url": url
-            },
-            dependencies=[task.id] + desc_task_ids
-        )
+        await pool.submit(_run, label=f"extract_audio:{video_path}")
 
         return {"audio_path": audio_path, "url": url, "url_slug": url_slug, "desc_task_ids": desc_task_ids, "metadata": metadata}
     except Exception as e:

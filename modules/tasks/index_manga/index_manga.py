@@ -1,13 +1,13 @@
 """
 Task: index_manga
-Pool: rag
+Pool: cpu
 Purpose: Indexes manga gallery content into the RAG knowledge base.
 Input:
     gallery_id    str  manga gallery ID
     metadata      dict  gallery metadata (title, tags)
     url           str  original source URL
     url_slug      str  (mandatory)
-    dep_*         dict  task outputs containing 'descriptions' list
+    dep_*         dict  task outputs containing reasoning_text and transcript_text
 Output:
     url_slug  str  (mandatory)
     filename  str (optional)

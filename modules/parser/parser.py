@@ -121,7 +121,11 @@ def recursive_split(text: str, max_chars: int, separators: list[str]) -> list[st
 
 def extract_content(html: str) -> dict[str, str]:
     # Pre-process HTML to ensure <pre> blocks are properly newline-delimited
-    html = re.sub(r'<pre>(.*?)</pre>', lambda m: f"<pre>\n{m.group(1).replace('\n', '<br/>')}\n</pre>", html, flags=re.DOTALL)
+    def format_pre(match: re.Match) -> str:
+        body = match.group(1).replace("\n", "<br/>")
+        return f"<pre>\n{body}\n</pre>"
+
+    html = re.sub(r'<pre>(.*?)</pre>', format_pre, html, flags=re.DOTALL)
     
     text = trafilatura.extract(html, output_format='markdown', with_metadata=True)
     if text is None:

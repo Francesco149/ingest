@@ -1,6 +1,6 @@
 """
 Task: transcribe
-Pool: cuda
+Pool: (none; submits whisper to cuda_pool)
 Input:
     url_slug        str  mandatory url slug
     audio_path      str  path to the 16kHz mono WAV produced by extract_audio
@@ -13,8 +13,7 @@ Output:
     transcript      str  full transcript text
     desc_task_ids   list[str]
     metadata        dict
-Creates:
-    summarize_video  — summarization task; dep: transcribe, desc_task_ids
+Creates: nothing
 """
 
 import logging
@@ -24,10 +23,10 @@ import tempfile
 from pathlib import Path
 from typing import Dict, Any
 
-from modules.task_manager.task_manager import Task, task_manager
+from modules.task_manager.task_manager import Task
 
 log = logging.getLogger("task_transcribe")
-POOL = "cpu"
+POOL = None
 
 
 async def run(task: Task, context: Dict[str, Any], input_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -35,8 +34,18 @@ async def run(task: Task, context: Dict[str, Any], input_data: Dict[str, Any]) -
     pool   = context["cuda_pool"]
 
     url_slug = input_data["url_slug"]
-    desc_task_ids = input_data.get("desc_task_ids", [])
-    metadata = input_data.get("metadata", {})
+    dep_outputs = [
+        v for k, v in input_data.items()
+        if k.startswith("dep_") and isinstance(v, dict)
+    ]
+    desc_task_ids = input_data.get("desc_task_ids") or next(
+        (v.get("desc_task_ids") for v in dep_outputs if v.get("desc_task_ids")),
+        [],
+    )
+    metadata = input_data.get("metadata") or input_data.get("meta") or next(
+        (v.get("metadata") for v in dep_outputs if v.get("metadata")),
+        {},
+    )
 
     # audio_path is injected by task_manager from the extract_audio dep output
     audio_path = next(
@@ -68,9 +77,5 @@ async def run(task: Task, context: Dict[str, Any], input_data: Dict[str, Any]) -
             return srt.read_text(encoding="utf-8").strip()
 
     transcript = await pool.submit(_run, label=f"whisper:{Path(audio_path).name}")
-    
-    # Spawn summarize_video task
-    log.info(f"Spawning summarize_video. input_data keys: {list(input_data.keys())}")
-    log.info(f"Transcript snippet being passed: '{transcript[:50]}...'")
     
     return {"url_slug": url_slug, "transcript": transcript, "desc_task_ids": desc_task_ids, "metadata": metadata}
