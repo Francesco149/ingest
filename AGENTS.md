@@ -7,6 +7,7 @@ pipeline for videos, articles, and manga. Start every session by reading:
 2. `CONVENTIONS.md` — coding conventions and DAG rules
 3. `DESIGN.md` — architecture and DAG shape
 4. `TECH_SPEC.md` — API/config/task contract reference
+5. `TESTING.md` — test commands, endpoint-backed integration tests, fixtures
 
 Keep docs close to code. If behavior changes, update the smallest authoritative
 doc in the same change. Prefer module `SPEC.md` files for module-specific
@@ -68,9 +69,8 @@ Baseline checks for Python edits:
 - `pytest`
 - `git diff --check`
 
-Whisper/no-captions fallback is known to need an integration regression test
-before it can be treated as covered. The local Whisper model for that path is:
-`/opt/ai-lab/models/whisper/ggml-medium.bin`.
+See `TESTING.md` for endpoint-backed integration tests, synthetic fixtures, and
+local model/endpoint defaults.
 
 ## Commit Convention
 

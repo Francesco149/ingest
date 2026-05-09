@@ -61,10 +61,13 @@ The project is organized into functional modules to ensure maintainability and s
    pip install -r requirements.txt
    ```
 
-   The Nix shell also includes pytest and core runtime libraries for smoke tests:
+   The Nix shell also includes pytest and core runtime libraries for tests:
    ```bash
    pytest
    ```
+
+   See `TESTING.md` for baseline checks, endpoint-backed integration tests, and
+   synthetic fixture generation.
 
 2. **Configuration**: 
    Configure your environment via `config.toml` or `INGEST_CONFIG`. Ensure your LLM endpoints (OpenAI-compatible/llama.cpp) and prompt overrides are mapped in configuration.
