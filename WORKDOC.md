@@ -63,8 +63,8 @@ slower endpoint-backed integration tests using generated dummy data.
   - Pillow-based PNG generator under `tests/fixtures/synthetic_manga.py`
   - uses a DejaVu TTF from the Nix shell/store when available for clearer OCR
   - produces three deterministic manga-style pages plus `reference.json`
-  - visible page numbers are deliberately wrong (`99`, `7`, `42`) while story
-    order is pages 1-3
+  - visible scan page markings are deliberately wrong (`99`, `7`, `42`); the
+    ground-truth page range exists only in the prompt formatted by task code
   - fixture wording avoids ambiguous glyphs that local OCR confused in early
     endpoint runs.
 - Endpoint-backed manga integration scaffold added:
@@ -72,6 +72,10 @@ slower endpoint-backed integration tests using generated dummy data.
   - defaults: reasoning LLM `http://localhost:8080`, llama-video
     `http://localhost:7080`
   - override with `INGEST_REASONING_LLM_BASE` and `INGEST_LLAMA_VIDEO_BASE`
+  - optional embedding similarity assertion with
+    `INGEST_USE_EMBEDDING_ASSERTIONS=1`; defaults to embeddings endpoint
+    `http://localhost:6080`, model `nomic-embed-text-v1.5.f16.gguf`, and
+    threshold `INGEST_EMBEDDING_MIN_SIMILARITY=0.65`
   - normal `pytest` collects it as skipped.
 - Endpoint reachability verified from the Codex environment:
   - `localhost` and `10.0.10.56` both reached ports `8080`, `7080`, and `6080`

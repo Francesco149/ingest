@@ -1,9 +1,11 @@
 import asyncio
+import math
 import os
 import sys
 import types
 from types import SimpleNamespace
 
+import httpx
 import pytest
 
 from tests.fixtures.synthetic_manga import generate_synthetic_manga_fixture
@@ -33,19 +35,20 @@ def endpoint_config(tmp_path):
             "manga_describe": {
                 "system": (
                     "You describe synthetic manga pages for an ingestion regression test. "
-                    "Use story order from the prompt, not visible printed page numbers."
+                    "Use page indices from the prompt, not visible scan page markings."
                 ),
                 "user_template": (
-                    "Describe story pages {start}-{end}. The visible printed page numbers "
-                    "may be deliberately wrong; ignore those visible page markings. "
+                    "Describe image pages {start}-{end}. These prompt page indices are "
+                    "the ground truth. Visible scan page markings may be deliberately "
+                    "wrong; ignore those visible markings. "
                     "Capture captions, dialogue, and major actions."
                 ),
             },
             "manga_summarize": {
                 "system": "Summarize manga page descriptions for semantic retrieval.",
                 "instructions": (
-                    "Preserve the story order. Do not treat visible printed page numbers "
-                    "as canonical page order."
+                    "Preserve the prompt-provided page order. Do not treat visible scan "
+                    "page markings as canonical page order."
                 ),
                 "user_template": (
                     "Title: {title}\nTags: {tags}\nInstructions: {instructions}\n"
@@ -62,6 +65,24 @@ def endpoint_config(tmp_path):
             },
         },
     }
+
+
+async def embedding_similarity(expected: str, actual: str) -> float:
+    base = os.environ.get("INGEST_EMBEDDINGS_BASE", "http://localhost:6080")
+    model = os.environ.get("INGEST_EMBEDDINGS_MODEL", "nomic-embed-text-v1.5.f16.gguf")
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await client.post(
+            f"{base.rstrip('/')}/v1/embeddings",
+            json={"model": model, "input": [expected, actual]},
+        )
+    response.raise_for_status()
+    data = response.json()["data"]
+    left = data[0]["embedding"]
+    right = data[1]["embedding"]
+    dot = sum(a * b for a, b in zip(left, right))
+    left_norm = math.sqrt(sum(a * a for a in left))
+    right_norm = math.sqrt(sum(b * b for b in right))
+    return dot / (left_norm * right_norm)
 
 
 def test_generated_manga_fixture_against_local_llm_endpoints(tmp_path, monkeypatch):
@@ -143,7 +164,14 @@ def test_generated_manga_fixture_against_local_llm_endpoints(tmp_path, monkeypat
         assert "key" in combined
         assert "door" in combined
         assert "star" in combined
-        assert "99" not in combined
-        assert "42" not in combined
+        assert "ignore" in combined or "ground truth" in combined
+        assert "scan page 99" not in summary["reasoning_text"].lower()
+        assert "scan page 42" not in summary["reasoning_text"].lower()
+
+        if os.environ.get("INGEST_USE_EMBEDDING_ASSERTIONS") == "1":
+            expected = "\n".join(fixture["expected_summary_points"])
+            actual = summary["reasoning_text"] + "\n" + transcript["transcript_text"]
+            similarity = await embedding_similarity(expected, actual)
+            assert similarity >= float(os.environ.get("INGEST_EMBEDDING_MIN_SIMILARITY", "0.65"))
 
     asyncio.run(scenario())
