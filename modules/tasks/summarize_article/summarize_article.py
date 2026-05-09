@@ -29,15 +29,11 @@ async def run(task: Task, context: Dict[str, Any], input_data: Dict[str, Any]) -
         else:
             logger.info(f"Multiple summaries ({len(summaries)}) found. Consolidating via LLM.")
             combined_text = "\n".join(summaries)
-            prompt = (
-                "You are an expert editor. Combine the following individual summaries "
-                "into a single, cohesive, information-dense summary optimized for "
-                "semantic search and RAG. Output only the final summary text.\n\n"
-                f"{combined_text}"
-            )
+            prompt_cfg = context['config']['prompts']['article_summary']
+            prompt = prompt_cfg['user_template'].format(combined_text=combined_text)
             final_summary = await chat(
                 prompt=prompt,
-                system_prompt="You are an expert editor.",
+                system_prompt=prompt_cfg['system'],
                 temperature=0.3,
                 config=context['config']
             )

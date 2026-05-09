@@ -1,6 +1,6 @@
 """
 Task: describe_single_chunk
-Pool: vision
+Pool: cuda
 Purpose: Extracts a clip from the video, samples frames, and captions it using llama-video. Produces one timestamped description block.
 Input:
     video_path  str   path to the downloaded video file
@@ -30,11 +30,6 @@ POOL = "cuda"
 
 log = logging.getLogger("task_describe_single_chunk")
 
-DEFAULT_PROMPT = """Explain what happens in this video, no preamble, no outro.
-This is part of a longer video, so don't say "at the end of the video" or
-"the last scene", just explain what happens. No "the video shows/contains" either.
-Don't overthink it, just loosely describe the action. IMPORTANT: If you see any text, signs, diagrams, or labels, describe them very clearly and verbatim."""
-
 
 async def run(task: Task, context: Dict[str, Any], input_data: Dict[str, Any]) -> Dict[str, Any]:
     from llama_video import Extractor, Preprocessor, Settings, get_preset
@@ -47,7 +42,6 @@ async def run(task: Task, context: Dict[str, Any], input_data: Dict[str, Any]) -
     url        = input_data.get("url")
     url_slug   = input_data["url_slug"]
     config     = context["config"]
-    pool       = context["vision_pool"]
 
     log.info(f"Starting describe_single_chunk for slug: {url_slug}")
 
@@ -62,7 +56,7 @@ async def run(task: Task, context: Dict[str, Any], input_data: Dict[str, Any]) -
     preprocessor = Preprocessor(settings.model)
     fps          = config["processing"]["fps"]
 
-    prompt = input_data.get("custom_prompt", DEFAULT_PROMPT)
+    prompt = input_data.get("custom_prompt", config["prompts"]["video_describe"]["user"])
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         clip_path = os.path.join(tmp_dir, f"clip_{start_ts}.mp4")

@@ -9,7 +9,7 @@ POOL = "vision"
 async def run(task: Task, context: Dict[str, Any], input_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Task: summarize_manga
-    Pool: rag
+    Pool: vision
     Purpose: Generate a semantic search-optimized summary of manga gallery content.
     Input:
         url_slug        str (mandatory)
@@ -61,19 +61,17 @@ async def run(task: Task, context: Dict[str, Any], input_data: Dict[str, Any]) -
         f'content_body {len(content_body)} chars: {content_body[:50]} ...'
     )
 
-    # Reasoning Prompt
-    user_msg = (
-        f'# {titles_str}\n'
-        f'tags: {tags_str}\n'
-        f'{content_body}\n\n'
-        '# IMPORTANT INSTRUCTIONS\n'
-        f'{context["config"]["prompts"]["manga_summarize"]["instructions"]}'
+    prompt_cfg = context["config"]["prompts"]["manga_summarize"]
+    user_msg = prompt_cfg["user_template"].format(
+        title=titles_str,
+        tags=tags_str,
+        content_body=content_body,
+        instructions=prompt_cfg["instructions"],
     )
 
-    system_msg = context["config"]["prompts"]["manga_summarize"]["system"]
     response_text = await chat(
         prompt=user_msg,
-        system_prompt=system_msg,
+        system_prompt=prompt_cfg["system"],
         config=context['config']
     )
     log.info(f'Response: {response_text[:50]}')

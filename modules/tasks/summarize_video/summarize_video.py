@@ -40,9 +40,23 @@ async def run(task: Task, context: Dict[str, Any], input_data: Dict[str, Any]) -
     if not url_slug:
         raise ValueError("url_slug missing")
 
-    transcript_segments = input_data.get("transcript", [])
-    metadata = input_data.get("metadata", {})
+    transcript_segments = input_data.get("transcript")
+    metadata = input_data.get("metadata") or input_data.get("meta") or {}
     desc_task_ids = input_data.get("desc_task_ids", [])
+
+    dep_outputs = [
+        v for k, v in input_data.items()
+        if k.startswith("dep_") and isinstance(v, dict)
+    ]
+    if transcript_segments is None:
+        transcript_segments = next(
+            (v.get("transcript") for v in dep_outputs if v.get("transcript") is not None),
+            [],
+        )
+    if not metadata:
+        metadata = next((v.get("metadata") for v in dep_outputs if v.get("metadata")), {})
+    if not desc_task_ids:
+        desc_task_ids = next((v.get("desc_task_ids") for v in dep_outputs if v.get("desc_task_ids")), [])
 
     # Convert segments to a human-readable string for LLM context
     if isinstance(transcript_segments, list):
@@ -61,7 +75,11 @@ async def run(task: Task, context: Dict[str, Any], input_data: Dict[str, Any]) -
         if dt and dt.output_data:
             start = dt.output_data.get("start_ts", 0.0)
             end = dt.output_data.get("end_ts", 0.0)
-            text = extract_segment(transcript_segments, start, end)
+            text = (
+                extract_segment(transcript_segments, start, end)
+                if isinstance(transcript_segments, list)
+                else ""
+            )
             if text:
                 segment_lines.append(f"[{start:.2f}-{end:.2f}] {text}")
             
@@ -72,27 +90,17 @@ async def run(task: Task, context: Dict[str, Any], input_data: Dict[str, Any]) -
 
     content_body = "\n\n".join(segment_lines)
 
-    # Reasoning Prompt
-    user_msg = (
-        f"# Video: {metadata.get('title', 'Unknown Title')}\n"
-        f"Tags: {metadata.get('tags', '')}\n\n"
-        f"## Transcript Segment:\n{transcript_text_for_llm}\n\n"
-        f"## Visual Descriptions:\n{content_body}\n\n"
-        "# IMPORTANT INSTRUCTIONS\n"
-        "You are an expert video analyst. Based on the provided transcript and "
-        "visual descriptions, provide a detailed semantic summary of this video segment.\n"
-        "Include:\n"
-        "* A summary of key events, tropes, and themes.\n"
-        "* A detailed narrative description of the actions occurring.\n"
-        "* Integration of dialogue from the transcript with the visual context.\n"
-        "* Do not assume the visual descriptions are perfect; use the transcript "
-        "to correct or add nuance to the scene description.\n"
+    prompt_cfg = context['config']['prompts']['video_summarize']
+    user_msg = prompt_cfg['user_template'].format(
+        title=metadata.get('title', 'Unknown Title'),
+        tags=metadata.get('tags', ''),
+        transcript=transcript_text_for_llm,
+        visual_descriptions=content_body,
     )
 
-    system_msg = "You are an expert video analyst."
     reasoning_text = await chat(
         prompt=user_msg,
-        system_prompt=system_msg,
+        system_prompt=prompt_cfg['system'],
         temperature=1.0,
         config=context['config']
     )

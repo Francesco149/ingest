@@ -1,5 +1,4 @@
 import logging
-import asyncio
 from typing import Any, Dict
 from modules.task_manager.task_manager import Task
 from modules.llm_openai import chat
@@ -16,19 +15,13 @@ async def run(task: Task, context: Dict[str, Any], input_data: Dict[str, Any]) -
 
     log.info(f"Summarizing text chunk of length: {len(text)}")
 
-    prompt = (
-        "You are an expert analyst and Semantic Search Optimizer. "
-        "Summarize the following text chunk, focusing on extracting key entities, "
-        "themes, tropes, and narrative descriptions to maximize semantic searchability. "
-        "Ensure the summary is concise but information-dense.\n\n"
-        f"Text: {text}"
-    )
+    prompt_cfg = context['config']['prompts']['text_chunk_summary']
+    prompt = prompt_cfg['user_template'].format(text=text)
 
     try:
-        system_msg = "You are an expert analyst and Semantic Search Optimizer."
         summary_text = await chat(
             prompt=prompt,
-            system_prompt=system_msg,
+            system_prompt=prompt_cfg['system'],
             model='local-model',
             temperature=0.7,
             config=context['config']
