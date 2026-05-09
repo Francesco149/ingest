@@ -1,9 +1,11 @@
-import logging
-import httpx
 import asyncio
+import logging
 from typing import Any, Dict, List, Optional, Union
 
+import httpx
+
 log = logging.getLogger(__name__)
+
 
 async def chat(
     prompt: Union[str, List[Dict[str, Any]]],
@@ -17,23 +19,24 @@ async def chat(
     config: Optional[Dict[str, Any]] = None,
 ) -> str:
     """
-    A unified helper for OpenAI-compatible chat completions.
-    Includes retry logic for transient empty responses.
+    Send a chat-completions request to an OpenAI-compatible API.
+
+    Retries transient empty or transport failures up to ten times.
     """
     if config is None:
         config = {}
 
-    api_cfg = config.get('api', {})
+    api_cfg = config.get("api", {})
     if base_url is None:
-        base_url = api_cfg.get('reasoning_llama_base')
+        base_url = api_cfg.get("reasoning_llama_base")
     if model is None:
-        model = 'local-model'
+        model = "local-model"
     if temperature is None:
-        temperature = api_cfg.get('llama_temperature')
+        temperature = api_cfg.get("llama_temperature")
     if max_tokens is None:
-        max_tokens = api_cfg.get('reasoning_max_tokens')
+        max_tokens = api_cfg.get("reasoning_max_tokens")
     if timeout is None:
-        timeout = api_cfg.get('llama_timeout')
+        timeout = api_cfg.get("llama_timeout")
     if api_key is None:
         api_key = ""
 
@@ -55,7 +58,7 @@ async def chat(
         "Please provide a response.",
         "Please try again.",
         "Please respond with content.",
-        "Please provide a response."
+        "Please provide a response.",
     ]
 
     async with httpx.AsyncClient(timeout=timeout) as client:
@@ -68,12 +71,19 @@ async def chat(
                 if isinstance(prompt, str):
                     content_to_send = prompt
                     if attempt > 0:
-                        content_to_send += f"\n\n[Nudge: {nudges[min(attempt-1, len(nudges)-1)]}]"
+                        content_to_send += (
+                            f"\n\n[Nudge: {nudges[min(attempt - 1, len(nudges) - 1)]}]"
+                        )
                     messages.append({"role": "user", "content": content_to_send})
                 else:
                     messages.extend(prompt)
                     if attempt > 0:
-                        messages.append({"role": "user", "content": nudges[min(attempt-1, len(nudges)-1)]})
+                        messages.append(
+                            {
+                                "role": "user",
+                                "content": nudges[min(attempt - 1, len(nudges) - 1)],
+                            }
+                        )
 
                 payload = {**payload_template, "messages": messages}
                 payload = {k: v for k, v in payload.items() if v is not None}
@@ -85,11 +95,10 @@ async def chat(
 
                 if not content or not content.strip():
                     raise ValueError("LLM returned an empty content string.")
-                
-                return content
 
-            except (httpx.HTTPStatusError, httpx.RequestError, ValueError) as e:
+                return content
+            except (httpx.HTTPStatusError, httpx.RequestError, ValueError) as exc:
                 if attempt == 9:
-                    raise e
-                log.warning(f"LLM attempt {attempt + 1} failed: {e}. Retrying...")
+                    raise exc
+                log.warning(f"LLM attempt {attempt + 1} failed: {exc}. Retrying...")
                 await asyncio.sleep(1)

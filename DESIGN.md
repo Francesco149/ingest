@@ -57,6 +57,7 @@ templates with source content.
 | Module | Role |
 | --- | --- |
 | `api.py` | FastAPI routes, lifespan management |
+| `config_loader` | Config merge/cache helper for example, local, and env overrides |
 | `engine.py` | Config, pool wiring, ffprobe, request entry points |
 | `task_manager.py` | SQLite DAG scheduler, dispatch loop, dep_ enrichment |
 | `worker_pool.py` | Async worker pool with thread-executor fallback |
@@ -66,6 +67,7 @@ templates with source content.
 | `fetcher_article.py` | httpx article HTML fetch |
 | `parser.py` | VTT text extraction, HTML→Markdown via trafilatura |
 | `indexer.py` | Write Markdown + upload to OpenWebUI RAG |
+| `llm_openai` | Shared OpenAI-compatible chat client for local LLM calls |
 | `rag_client.py` | OpenWebUI file upload/delete API client |
 | `tasks/` | One file per task type — see SPEC per task |
 

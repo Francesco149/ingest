@@ -30,7 +30,7 @@ async def force_ingest(url: str, note: str = "force rerun") -> dict
 - `worker_pool`: `WorkerPool`
 - `fetcher_url`: `normalize_url`, `is_video`, `slug`
 - `fetcher_video`: `get_video_metadata`
-- `fetcher_article`: `download_article`
+- `config_loader`: `get_config`
 - `task_manager`: `TaskManager`, `TaskStatus`
 
 ## Behavior Rules
@@ -39,6 +39,7 @@ async def force_ingest(url: str, note: str = "force rerun") -> dict
 - `sub_dir` is always `DOWNLOADS_DIR / "subtitles"` — `fetcher_subtitles` creates per-video subdirs within it
 - `get_video_duration` uses `ffprobe` via `asyncio.create_subprocess_exec`; returns 0 on failure rather than raising
 - `start_pools` calls `.start()` on all four pools then schedules `task_manager.start()` as an asyncio task
+- `stop_pools` stops the task manager and all four worker pools cleanly
 - `handle_video`, `handle_article`, and `handle_manga` implement request-level idempotency by checking for existing non-failed/cancelled tasks before creating new ones
 
 ## Must NOT

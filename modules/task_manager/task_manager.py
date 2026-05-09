@@ -193,9 +193,10 @@ class TaskDB:
             return cursor.rowcount
 
 class TaskManager:
-    def __init__(self, db_path: Path, worker_pools: Dict[str, Any]):
+    def __init__(self, db_path: Path, worker_pools: Dict[str, Any], config: Dict[str, Any]):
         self.db = TaskDB(db_path)
         self.pools = worker_pools
+        self.config = config
         self.running = False
         self._loop_task = None
 
@@ -210,6 +211,8 @@ class TaskManager:
         self.running = False
         if self._loop_task:
             self._loop_task.cancel()
+            await asyncio.gather(self._loop_task, return_exceptions=True)
+            self._loop_task = None
 
     async def _main_loop(self):
         while self.running:
@@ -241,9 +244,9 @@ class TaskManager:
             module = importlib.import_module(module_name)
 
             # Context with pools and task_manager
-            context = {f"{k}_pool": v for k, v in self.pools.items() if k != "config"}
+            context = {f"{k}_pool": v for k, v in self.pools.items()}
             context["task_manager"] = self
-            context["config"] = self.pools.get("config")
+            context["config"] = self.config
 
             # Enrich input_data with results from dependencies
             enriched_input = task.input_data.copy()

@@ -8,12 +8,11 @@ FastAPI `app` instance (consumed by uvicorn on port from `config["server"]["port
 
 ## Imports From
 - `engine`: all pools, task_manager, KNOWLEDGE_DIR, handler functions
-- `fetcher_url`: `is_video`, `is_manga`
 
 ## Behavior Rules
 - Uses `@asynccontextmanager lifespan` pattern — not deprecated `@app.on_event`
 - `POST /ingest`: delegates to engine.handle_ingest()
-- `GET /status`: reads pool `.n_workers` and `.depth` from engine singletons
+- `GET /status`: reads pool `.n_workers`, `.active`, and `.depth` from engine singletons
 - `GET /tasks`: returns id, type, status, created_at, error for all tasks
 - `GET /knowledge`: lists `*.md` files in KNOWLEDGE_DIR sorted by mtime descending
 - `GET or POST /rerun/{task_type}`: Resets all `DONE` tasks of `task_type` to `PENDING`.

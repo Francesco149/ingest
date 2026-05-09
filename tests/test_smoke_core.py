@@ -100,9 +100,7 @@ def test_worker_pool_runs_sync_and_async_jobs():
             assert async_result == "ok"
             assert pool.depth == 0
         finally:
-            for worker in pool._tasks:
-                worker.cancel()
-            await asyncio.gather(*pool._tasks, return_exceptions=True)
+            await pool.stop()
 
     asyncio.run(scenario())
 
@@ -154,7 +152,7 @@ def test_task_manager_dispatches_same_pool_tasks_in_parallel(tmp_path, monkeypat
     async def scenario():
         pool = WorkerPool("cpu", 2)
         pool.start()
-        manager = TaskManager(tmp_path / "tasks.db", {"cpu": pool, "config": {}})
+        manager = TaskManager(tmp_path / "tasks.db", {"cpu": pool}, {})
         started = []
         both_started = asyncio.Event()
         release = asyncio.Event()
@@ -194,9 +192,7 @@ def test_task_manager_dispatches_same_pool_tasks_in_parallel(tmp_path, monkeypat
             assert (await manager.db.get_task("task-a")).status == TaskStatus.DONE
             assert (await manager.db.get_task("task-b")).status == TaskStatus.DONE
         finally:
-            for worker in pool._tasks:
-                worker.cancel()
-            await asyncio.gather(*pool._tasks, return_exceptions=True)
+            await pool.stop()
 
     asyncio.run(scenario())
 
@@ -205,7 +201,7 @@ def test_task_manager_resets_pooled_rate_limited_tasks_to_pending(tmp_path, monk
     async def scenario():
         pool = WorkerPool("download", 1)
         pool.start()
-        manager = TaskManager(tmp_path / "tasks.db", {"download": pool, "config": {}})
+        manager = TaskManager(tmp_path / "tasks.db", {"download": pool}, {})
 
         async def fake_run(task, context, input_data):
             raise RateLimitError("slow down")
@@ -231,9 +227,7 @@ def test_task_manager_resets_pooled_rate_limited_tasks_to_pending(tmp_path, monk
             assert "retry_at" in updated.input_data
             assert updated.error_msg.startswith("Rate limited until ")
         finally:
-            for worker in pool._tasks:
-                worker.cancel()
-            await asyncio.gather(*pool._tasks, return_exceptions=True)
+            await pool.stop()
 
     asyncio.run(scenario())
 
@@ -246,7 +240,8 @@ def test_task_manager_dispatches_different_pools_concurrently(tmp_path, monkeypa
         vision_pool.start()
         manager = TaskManager(
             tmp_path / "tasks.db",
-            {"cpu": cpu_pool, "vision": vision_pool, "config": {}},
+            {"cpu": cpu_pool, "vision": vision_pool},
+            {},
         )
         started = set()
         both_started = asyncio.Event()
@@ -288,14 +283,7 @@ def test_task_manager_dispatches_different_pools_concurrently(tmp_path, monkeypa
             assert (await manager.db.get_task("task-cpu")).status == TaskStatus.DONE
             assert (await manager.db.get_task("task-vision")).status == TaskStatus.DONE
         finally:
-            for pool in (cpu_pool, vision_pool):
-                for worker in pool._tasks:
-                    worker.cancel()
-            await asyncio.gather(
-                *cpu_pool._tasks,
-                *vision_pool._tasks,
-                return_exceptions=True,
-            )
+            await asyncio.gather(cpu_pool.stop(), vision_pool.stop())
 
     asyncio.run(scenario())
 
@@ -304,7 +292,7 @@ def test_task_manager_leaves_tasks_running_when_pool_is_full(tmp_path, monkeypat
     async def scenario():
         pool = WorkerPool("cpu", 1)
         pool.start()
-        manager = TaskManager(tmp_path / "tasks.db", {"cpu": pool, "config": {}})
+        manager = TaskManager(tmp_path / "tasks.db", {"cpu": pool}, {})
         first_started = asyncio.Event()
         release = asyncio.Event()
 
@@ -346,8 +334,6 @@ def test_task_manager_leaves_tasks_running_when_pool_is_full(tmp_path, monkeypat
             assert pool.active == 0
             assert pool.depth == 0
         finally:
-            for worker in pool._tasks:
-                worker.cancel()
-            await asyncio.gather(*pool._tasks, return_exceptions=True)
+            await pool.stop()
 
     asyncio.run(scenario())

@@ -5,7 +5,6 @@ No processing logic lives here.
 
 import asyncio
 import logging
-import os
 from pathlib import Path
 
 from modules.config_loader import get_config
@@ -13,7 +12,6 @@ from modules.config_loader import get_config
 from modules.worker_pool.worker_pool import WorkerPool
 from modules.fetcher_url.fetcher_url import normalize_url, is_video, slug, get_manga_id
 from modules.fetcher_video.fetcher_video import get_video_metadata
-from modules.fetcher_article.fetcher_article import download_article
 from modules.task_manager.task_manager import TaskManager, TaskStatus
 
 log = logging.getLogger("engine")
@@ -41,13 +39,13 @@ pools = {
     "cpu":      cpu_pool,
     "cuda":     cuda_pool,
     "vision":   vision_pool,
-    "config":   config,
 }
 
 task_manager = TaskManager(DOWNLOADS_DIR.parent / "data" / "ingest.db"
                            if "db_path" not in config["paths"]
                            else Path(config["paths"]["db_path"]),
-                           pools)
+                           pools,
+                           config)
 
 def start_pools():
     download_pool.start()
@@ -59,6 +57,12 @@ def start_pools():
 
 async def stop_pools():
     await task_manager.stop()
+    await asyncio.gather(
+        download_pool.stop(),
+        cpu_pool.stop(),
+        cuda_pool.stop(),
+        vision_pool.stop(),
+    )
     log.info("stopping pools")
 
 # ── helpers ───────────────────────────────────────────────────────────────────

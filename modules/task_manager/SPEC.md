@@ -34,6 +34,7 @@ class TaskDB:
     async def delete_tasks_by_identifiers(self, url: str = None, url_slug: str = None) -> int
 
 class TaskManager:
+    def __init__(self, db_path: Path, worker_pools: dict[str, Any], config: dict[str, Any])
     async def start()
     async def stop()
     async def create_task(type: str, input_data: dict, dependencies: list[str] = None) -> str
@@ -49,6 +50,7 @@ None — no internal module dependencies (task modules are loaded dynamically vi
 - `_dispatch` catches `RateLimitError`: sets status `PENDING` and `input_data['retry_at'] = (now + 60s).isoformat()`
 - Pooled and unpooled tasks share the same `_run_task` path, so `DONE` / `FAILED` / rate-limited transitions behave the same either way
 - Task modules are loaded as `tasks.{task.type}` via `importlib.import_module`
+- `TaskManager` stores worker pools separately from config; config is passed explicitly to the constructor
 - `context` passed to tasks: `{pool_name}_pool` for each pool, plus `task_manager` and `config`
 - `_propagate_failure`: recursively CANCELS all children when a task FAILs
 - `_main_loop` polls every 1 second; on exception sleeps 5 seconds before resuming

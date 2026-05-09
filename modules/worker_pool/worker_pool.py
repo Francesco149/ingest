@@ -20,9 +20,21 @@ class WorkerPool:
         self._active_jobs = 0
 
     def start(self):
+        if self._tasks:
+            log.info(f"[pool:{self.name}] start skipped; workers already running")
+            return
         for i in range(self.n_workers):
             self._tasks.append(asyncio.create_task(self._worker(i)))
         log.info(f"[pool:{self.name}] {self.n_workers} workers ready")
+
+    async def stop(self) -> None:
+        if not self._tasks:
+            return
+        for worker in self._tasks:
+            worker.cancel()
+        await asyncio.gather(*self._tasks, return_exceptions=True)
+        self._tasks.clear()
+        log.info(f"[pool:{self.name}] workers stopped")
 
     async def _worker(self, idx: int):
         while True:
