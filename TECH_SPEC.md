@@ -13,7 +13,34 @@ Routes by content type and returns immediately. All processing is async.
 **Responses:**
 - `200 {"status": "pending", "task_id": "...", "title": "..."}` — video queued
 - `200 {"status": "pending", "task_id": "..."}` — article queued  
+- `200 {"status": "pending", "task_id": "..."}` — manga queued
 - `200 {"status": "todo", "message": "..."}` — unsupported type
+- `400 {"error": "no url provided"}`
+
+### `GET|POST /rerun/{task_type}`
+Resets existing `DONE` tasks of the given type back to `PENDING`.
+
+**Query parameters:**
+- `slug` optional URL slug. When present, only a matching `DONE` task with that
+  `input_data.url_slug` is reset.
+
+**Response:**
+```json
+{ "rerun_count": 1 }
+```
+
+### `POST /force`
+Deletes existing task rows and local Markdown output for a URL, then starts a
+fresh ingest for that URL. This is destructive for that URL's current local task
+state.
+
+**Request body:**
+```json
+{ "url": "https://..." }
+```
+
+**Responses:**
+- Same success payloads as `POST /ingest`
 - `400 {"error": "no url provided"}`
 
 ### `GET /status`
@@ -30,10 +57,28 @@ Routes by content type and returns immediately. All processing is async.
 ```
 
 ### `GET /tasks`
-Returns all task rows: `id`, `type`, `status`, `created_at`, `error`.
+Returns all task rows:
+
+```json
+{
+  "tasks": [
+    {
+      "id": "...",
+      "type": "download_video",
+      "status": "PENDING",
+      "created_at": "2026-05-09T12:00:00",
+      "error": null
+    }
+  ]
+}
+```
 
 ### `GET /knowledge`
-Lists markdown files in `knowledge_dir`, newest first.
+Lists Markdown files in `knowledge_dir`, newest first:
+
+```json
+{ "files": ["example.md"] }
+```
 
 ---
 
@@ -131,12 +176,22 @@ whisper_bin     = "/opt/ai-lab/whisper.cpp/build/bin/whisper-cli"
 whisper_model   = "/opt/ai-lab/models/whisper/ggml-medium.bin"
 db_path         = "/opt/ai-lab/data/ingest.db"
 downloads_dir   = "/opt/ai-lab/downloads"        # optional, defaults to knowledge_dir/downloads
+yt_dlp_bin      = "yt-dlp"
+ffmpeg_bin      = "ffmpeg"
+ffprobe_bin     = "ffprobe"
 
 [api]
-llama_base            = "http://localhost:8080"
-openwebui_base        = "http://localhost:3000"
-openwebui_key         = "..."
-openwebui_collection  = "..."
+llama_base             = "http://localhost:8080"
+reasoning_llama_base   = "http://localhost:8080"
+openwebui_base         = "http://localhost:3000"
+openwebui_key          = "..."
+openwebui_collection   = "..."
+manga_api_key          = ""
+manga_api_url          = "https://example.com/manga/api/v1/"
+manga_url_fingerprint  = "example.com/g/"
+reasoning_max_tokens   = 3000
+llama_timeout          = 1200
+llama_temperature      = 0.7
 
 [workers]
 download = 2
@@ -147,6 +202,19 @@ vision   = 2
 [processing]
 chunk_duration = 30    # seconds per describe_single_chunk task
 fps            = 2.0   # frames per second for llama-video extraction
+cookies_from_browser = "chromium"
+yt_formats = [
+  "bestvideo[height<=1080]+bestaudio/best",
+  "bestvideo+bestaudio/best",
+]
+
+[manga]
+vision_uses_metadata = false
+description_batch_size = 3
+description_overlap = 1
+vision_max_tokens = 1024
+vision_temperature = 0.2
+summary_max_batch_size = 16
 
 [prompts.video_describe]
 user = "..."

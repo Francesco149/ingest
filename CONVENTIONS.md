@@ -93,10 +93,13 @@ No registration step is needed — `task_manager` imports modules by name dynami
 ## Testing
 
 - Use `nix-shell` from the repository root to get Python and system tools.
+- Prefer adding missing test/runtime tools and Python packages to `shell.nix`
+  so future sessions use the same environment.
 - Prefer the local Nix cache `https://cache.box.headpats.uk`; see `AGENTS.md`
   for fallback cache/substituter keys.
-- Use a local `.venv` inside the Nix shell for Python dependencies from
-  `requirements.txt`.
+- Use a local `.venv` only for quick experiments that do not install binary
+  wheels. `requirements.txt` is for humans and non-Nix development
+  environments.
 - Run `python -m compileall run_api.py modules` after Python edits.
 - Run `pytest` for test changes and before committing behavior changes.
 - Run `git diff --check` before finishing.
@@ -105,10 +108,12 @@ No registration step is needed — `task_manager` imports modules by name dynami
 
 ## Commit style
 
-- If asked to commit, co-author the commit with all human/agent contributors
-  using `Co-authored-by:` trailers.
-- Ask for the user's preferred commit identity if it is not already known.
+- If asked to commit, use the configured git author as the commit author.
+- Add `Co-authored-by:` trailers only for contributors that are not already the
+  commit author.
 - Include `Co-authored-by: Codex <codex@openai.com>` for Codex-authored work.
+- Do not invent human names or email addresses. Ask before adding a human
+  co-author when their preferred identity is unknown.
 
 ## Known sharp edges
 
