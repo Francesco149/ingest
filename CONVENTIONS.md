@@ -93,6 +93,8 @@ No registration step is needed — `task_manager` imports modules by name dynami
 ## Testing
 
 - Use `nix-shell` from the repository root to get Python and system tools.
+- Prefer the local Nix cache `https://cache.box.headpats.uk`; see `AGENTS.md`
+  for fallback cache/substituter keys.
 - Use a local `.venv` inside the Nix shell for Python dependencies from
   `requirements.txt`.
 - Run `python -m compileall run_api.py modules` after Python edits.
