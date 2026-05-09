@@ -4,13 +4,16 @@
 
 This is the `ingest` service — a DAG-scheduled ingestion pipeline. Before making any change, orient yourself with:
 
-1. `DESIGN.md` — architecture, DAG structure, known issues
-2. `TECH_SPEC.md` — API contracts, task schemas, config reference
-3. `CONVENTIONS.md` — this file; coding style and agentic workflow rules
+1. `AGENTS.md` — session workflow, repository map, commit rules
+2. `DESIGN.md` — architecture, DAG structure, known issues
+3. `TECH_SPEC.md` — API contracts, task schemas, config reference
+4. `CONVENTIONS.md` — this file; coding style and agentic workflow rules
 
 ## Navigating this codebase
 
-**The entry points are small.** `api.py` is ~60 lines. `engine.py` is ~120 lines. Start there.
+**The entry points are small.** `run_api.py` starts uvicorn, `modules/api/api.py`
+owns routes, and `modules/engine/engine.py` owns pool/config wiring and ingest
+routing. Start there.
 
 **Each task is a standalone file.** To understand any stage of the pipeline, read `tasks/{task_type}.py`. The docstring at the top of every task file specifies:
 - Input fields (direct and via dep_ enrichment)
@@ -18,13 +21,19 @@ This is the `ingest` service — a DAG-scheduled ingestion pipeline. Before maki
 - What child tasks it creates and with what dependencies
 
 **Shared utilities (read-only for tasks):**
-- `fetcher.py` — all network I/O
-- `parser.py` — VTT and HTML text extraction
-- `indexer.py` — Markdown write + RAG upload
-- `worker_pool.py` — async worker pool (rarely need to touch)
-- `task_manager.py` — DAG scheduler + SQLite (rarely need to touch)
+- `modules/fetcher_*/*` — source-specific network/download behavior
+- `modules/parser/parser.py` — VTT and HTML text extraction
+- `modules/indexer/indexer.py` — Markdown write + RAG upload
+- `modules/worker_pool/worker_pool.py` — async worker pool (rarely need to touch)
+- `modules/task_manager/task_manager.py` — DAG scheduler + SQLite (rarely need to touch)
 
-**`processor.py` is a deprecated tombstone.** Do not add logic there.
+**Prompt ownership.** All durable LLM prompts live in `config.example.toml` under
+`[prompts.*]`. Task code may assemble source material and format configured
+templates, but must not own long-lived prompt instructions.
+
+**Specs are contracts, not archives.** When code behavior changes, update the
+nearest `SPEC.md` and any affected table/diagram in `DESIGN.md` or `TECH_SPEC.md`
+in the same change.
 
 ## Task file conventions
 
@@ -57,9 +66,10 @@ Tasks must re-raise exceptions rather than swallowing them — `task_manager` ma
 ## Adding a new task type
 
 1. Create `tasks/{task_type}.py` with the standard docstring and `async def run(task, context, input_data)`.
-2. Update `DESIGN.md` to show where it fits in the DAG.
-3. Update `TECH_SPEC.md § Task types` table.
-4. Wire it into the DAG by having an existing task call `task_manager.create_task("{task_type}", ...)` with the right dependencies.
+2. Add or update `modules/tasks/{task_type}/SPEC.md`.
+3. Update `DESIGN.md` to show where it fits in the DAG.
+4. Update `TECH_SPEC.md § Task types` table.
+5. Wire it into the DAG by having an existing task call `task_manager.create_task("{task_type}", ...)` with the right dependencies.
 
 No registration step is needed — `task_manager` imports modules by name dynamically.
 
@@ -77,6 +87,25 @@ No registration step is needed — `task_manager` imports modules by name dynami
 - Use `input_data.get("key")` for optional fields, `input_data["key"]` for required
 - Log with the task-scoped logger: `log = logging.getLogger("task_{name}")`
 - Keep subprocess calls synchronous inside `pool.submit()` — don't mix `asyncio.create_subprocess_exec` with worker pool submission
+- Keep config loading centralized in `modules/config_loader.py`; avoid fallback
+  literals in task code when `config.example.toml` can be the default source.
+
+## Testing
+
+- Use `nix-shell` from the repository root to get Python and system tools.
+- Use a local `.venv` inside the Nix shell for Python dependencies from
+  `requirements.txt`.
+- Run `python -m compileall run_api.py modules` after Python edits.
+- Run `git diff --check` before finishing.
+- Add focused tests when changing DAG behavior or task contracts; the
+  Whisper/no-captions fallback especially needs a real integration regression.
+
+## Commit style
+
+- If asked to commit, co-author the commit with all human/agent contributors
+  using `Co-authored-by:` trailers.
+- Ask for the user's preferred commit identity if it is not already known.
+- Include `Co-authored-by: Codex <codex@openai.com>` for Codex-authored work.
 
 ## Known sharp edges
 

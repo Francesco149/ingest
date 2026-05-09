@@ -36,4 +36,6 @@ All modules in `modules/`.
 - N/A
 
 ## Open Questions
-- N/A
+- Whisper/no-captions video fallback needs an integration regression case. The
+  path drifted after the YouTube captions refactor and has not been exercised
+  end to end yet.

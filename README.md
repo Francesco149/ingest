@@ -30,16 +30,17 @@ The system is built on a highly decoupled, asynchronous architecture designed fo
 
 ## Module Structure
 The project is organized into functional modules to ensure maintainability and scalability:
-* `modules/fetcher_*`: Dedicated modules for content source scrapers (e.g., YouTube, Web, manga).
-* `modules/tasks_*`: Atomic processing units (e.g., transcription, manga analysis, article extraction).
-* `modules/parser/`: Handles HTML-to-Markdown conversion and content extraction logic.
-* `modules/indexer/`: Manages the indexing and RAG upload process to OpenWebUI.
-* `modules/utils/`: Shared utility functions for state management, logging, and configuration.
+* `modules/fetcher_*/*`: Dedicated modules for content source scrapers (e.g., YouTube, Web, manga).
+* `modules/tasks/*/*`: Atomic DAG processing units (e.g., transcription, manga analysis, article extraction).
+* `modules/parser/parser.py`: Handles HTML-to-Markdown conversion and content extraction logic.
+* `modules/indexer/indexer.py`: Manages Markdown writes and RAG upload through OpenWebUI.
+* `modules/config_loader.py`: Loads `config.example.toml`, local overrides, and selected environment overrides.
 
 ## Requirements & Dependencies
 ### System Requirements
 * **Hardware**: CUDA-enabled GPU (highly recommended for Whisper and Vision tasks).
-* **System Binaries**: `ffmpeg`, `yt-dlp`.
+* **System Binaries**: `ffmpeg`, `yt-dlp`, `whisper-cli`.
+* **Local Whisper model**: `/opt/ai-lab/models/whisper/ggml-medium.bin`.
 
 ### Software Dependencies
 * **Language**: Python 3.10+
@@ -48,13 +49,20 @@ The project is organized into functional modules to ensure maintainability and s
 ## Getting Started
 
 1. **Environment Setup**:
-   Install the necessary Python dependencies:
+   On NixOS, enter the project shell first:
    ```bash
+   nix-shell
+   ```
+
+   Then create a local virtualenv and install the necessary Python dependencies:
+   ```bash
+   python -m venv .venv
+   . .venv/bin/activate
    pip install -r requirements.txt
    ```
 
 2. **Configuration**: 
-   Configure your environment via `config.toml` or `.env` files. Ensure your LLM endpoints (OpenAI/llama.cpp) are correctly mapped in the configuration to your local or remote inference server.
+   Configure your environment via `config.toml` or `INGEST_CONFIG`. Ensure your LLM endpoints (OpenAI-compatible/llama.cpp) and prompt overrides are mapped in configuration.
 
 3. **Running the System**:
    The system is orchestrated through an API layer. To start the ingestion engine and the management API, execute:

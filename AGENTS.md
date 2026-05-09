@@ -1,0 +1,93 @@
+# AGENTS.md
+
+This repository is the `ingest` service: a Python DAG-scheduled ingestion
+pipeline for videos, articles, and manga. Start every session by reading:
+
+1. `AGENTS.md` — agent workflow, repository map, commit rules
+2. `CONVENTIONS.md` — coding conventions and DAG rules
+3. `DESIGN.md` — architecture and DAG shape
+4. `TECH_SPEC.md` — API/config/task contract reference
+
+Keep docs close to code. If behavior changes, update the smallest authoritative
+doc in the same change. Prefer module `SPEC.md` files for module-specific
+contracts and `TECH_SPEC.md` only for cross-module/API/config contracts.
+
+## Session Workflow
+
+- Check `git status --short` before edits. Treat existing changes as user work.
+- Read the relevant module and its `SPEC.md` before changing behavior.
+- Keep prompts in `config.example.toml` under `[prompts.*]`; task code should
+  format configured templates, not own prompt text.
+- Keep task `POOL` constants, task docstrings, module specs, and
+  `TECH_SPEC.md § Task types` aligned.
+- Run a focused verification before finishing. At minimum, run
+  `python -m compileall run_api.py modules` after Python edits.
+- Update `WORKDOC.md` only for active audit notes or unresolved decisions. Do not
+  let it become a second spec.
+
+## Testing Environment
+
+This repo is developed on NixOS. Use the repo-local `shell.nix` for a predictable
+Python/tooling baseline:
+
+```bash
+nix-shell
+python -m venv .venv
+. .venv/bin/activate
+pip install -r requirements.txt
+python -m compileall run_api.py modules
+```
+
+If `direnv` is enabled, `.envrc` runs `use nix` automatically after
+`direnv allow`. Keep `.venv/` untracked.
+
+Baseline checks for Python edits:
+
+- `python -m compileall run_api.py modules`
+- `git diff --check`
+
+Whisper/no-captions fallback is known to need an integration regression test
+before it can be treated as covered. The local Whisper model for that path is:
+`/opt/ai-lab/models/whisper/ggml-medium.bin`.
+
+## Commit Convention
+
+When asked to commit, include all human/agent authors using git trailers:
+
+```text
+Co-authored-by: Name <email>
+Co-authored-by: Codex <codex@openai.com>
+```
+
+If the user's preferred name/email is unknown, ask before committing. Do not
+invent a human email. Keep commit messages short and behavior-focused.
+
+## Code Map
+
+- `run_api.py` starts uvicorn for `modules.api.api:app`.
+- `modules/api/api.py` owns FastAPI routes and lifespan.
+- `modules/engine/engine.py` owns config, pool wiring, ffprobe, and ingest
+  routing. Do not put processing logic there.
+- `modules/task_manager/task_manager.py` owns SQLite task state, dependency
+  enrichment, and dispatch.
+- `modules/worker_pool/worker_pool.py` owns async worker queues.
+- `modules/fetcher_*/*` owns source-specific network/download behavior.
+- `modules/parser/parser.py` owns VTT and article parsing.
+- `modules/indexer/indexer.py` and `modules/rag_client/rag_client.py` own
+  Markdown persistence and OpenWebUI upload/delete behavior.
+- `modules/tasks/<task_type>/<task_type>.py` owns one DAG task each.
+
+## Current DAG Summary
+
+Video:
+`download_video -> describe_single_chunk[] + download_subtitles ->`
+`index_video` when subtitles exist, or `extract_audio -> transcribe -> index_video`
+when subtitles are unavailable.
+
+Article:
+`download_article -> extract_article_content -> chunk_article ->`
+`summarize_text_chunk[] -> summarize_article -> index_article`.
+
+Manga:
+`download_manga -> describe_manga_page[] -> summarize_manga[] ->`
+`transcribe_manga[] -> index_manga`.
