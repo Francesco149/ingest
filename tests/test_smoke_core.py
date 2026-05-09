@@ -1,7 +1,9 @@
 import asyncio
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 
 from modules import config_loader
+from modules.task_manager import task_manager as task_manager_module
 from modules.fetcher_url.fetcher_url import (
     creator_slug,
     get_manga_id,
@@ -10,7 +12,7 @@ from modules.fetcher_url.fetcher_url import (
     slug,
 )
 from modules.parser.parser import _parse_vtt, recursive_split
-from modules.task_manager.task_manager import Task, TaskDB, TaskStatus
+from modules.task_manager.task_manager import RateLimitError, Task, TaskDB, TaskManager, TaskStatus
 from modules.tasks.utils import get_batches
 from modules.worker_pool.worker_pool import WorkerPool
 
@@ -144,5 +146,208 @@ def test_task_db_uses_temp_sqlite_and_dependency_readiness(tmp_path):
         )
         assert await db.reset_running_to_pending() == 1
         assert (await db.get_task("child")).status == TaskStatus.PENDING
+
+    asyncio.run(scenario())
+
+
+def test_task_manager_dispatches_same_pool_tasks_in_parallel(tmp_path, monkeypatch):
+    async def scenario():
+        pool = WorkerPool("cpu", 2)
+        pool.start()
+        manager = TaskManager(tmp_path / "tasks.db", {"cpu": pool, "config": {}})
+        started = []
+        both_started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def fake_run(task, context, input_data):
+            started.append(task.id)
+            if len(started) == 2:
+                both_started.set()
+            await both_started.wait()
+            await release.wait()
+            return {"task_id": task.id}
+
+        fake_module = SimpleNamespace(POOL="cpu", run=fake_run)
+
+        def fake_import_module(name):
+            if name == "modules.tasks.fake_parallel.fake_parallel":
+                return fake_module
+            raise AssertionError(f"unexpected module import: {name}")
+
+        monkeypatch.setattr(task_manager_module.importlib, "import_module", fake_import_module)
+
+        try:
+            await manager.db.add_task(
+                Task(id="task-a", type="fake_parallel", status=TaskStatus.PENDING)
+            )
+            await manager.db.add_task(
+                Task(id="task-b", type="fake_parallel", status=TaskStatus.PENDING)
+            )
+            ready = await manager.db.get_pending_ready_tasks()
+            dispatches = [asyncio.create_task(manager._dispatch(task)) for task in ready]
+
+            await asyncio.wait_for(both_started.wait(), timeout=1.0)
+            assert started == ["task-a", "task-b"] or started == ["task-b", "task-a"]
+
+            release.set()
+            await asyncio.gather(*dispatches)
+            assert (await manager.db.get_task("task-a")).status == TaskStatus.DONE
+            assert (await manager.db.get_task("task-b")).status == TaskStatus.DONE
+        finally:
+            for worker in pool._tasks:
+                worker.cancel()
+            await asyncio.gather(*pool._tasks, return_exceptions=True)
+
+    asyncio.run(scenario())
+
+
+def test_task_manager_resets_pooled_rate_limited_tasks_to_pending(tmp_path, monkeypatch):
+    async def scenario():
+        pool = WorkerPool("download", 1)
+        pool.start()
+        manager = TaskManager(tmp_path / "tasks.db", {"download": pool, "config": {}})
+
+        async def fake_run(task, context, input_data):
+            raise RateLimitError("slow down")
+
+        fake_module = SimpleNamespace(POOL="download", run=fake_run)
+
+        def fake_import_module(name):
+            if name == "modules.tasks.fake_rate_limited.fake_rate_limited":
+                return fake_module
+            raise AssertionError(f"unexpected module import: {name}")
+
+        monkeypatch.setattr(task_manager_module.importlib, "import_module", fake_import_module)
+
+        try:
+            await manager.db.add_task(
+                Task(id="task-rate", type="fake_rate_limited", status=TaskStatus.PENDING)
+            )
+            task = await manager.db.get_task("task-rate")
+            await manager._dispatch(task)
+
+            updated = await manager.db.get_task("task-rate")
+            assert updated.status == TaskStatus.PENDING
+            assert "retry_at" in updated.input_data
+            assert updated.error_msg.startswith("Rate limited until ")
+        finally:
+            for worker in pool._tasks:
+                worker.cancel()
+            await asyncio.gather(*pool._tasks, return_exceptions=True)
+
+    asyncio.run(scenario())
+
+
+def test_task_manager_dispatches_different_pools_concurrently(tmp_path, monkeypatch):
+    async def scenario():
+        cpu_pool = WorkerPool("cpu", 1)
+        vision_pool = WorkerPool("vision", 1)
+        cpu_pool.start()
+        vision_pool.start()
+        manager = TaskManager(
+            tmp_path / "tasks.db",
+            {"cpu": cpu_pool, "vision": vision_pool, "config": {}},
+        )
+        started = set()
+        both_started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def fake_run(task, context, input_data):
+            started.add(task.id)
+            if len(started) == 2:
+                both_started.set()
+            await both_started.wait()
+            await release.wait()
+            return {"task_id": task.id}
+
+        modules = {
+            "modules.tasks.fake_cpu.fake_cpu": SimpleNamespace(POOL="cpu", run=fake_run),
+            "modules.tasks.fake_vision.fake_vision": SimpleNamespace(POOL="vision", run=fake_run),
+        }
+
+        def fake_import_module(name):
+            if name in modules:
+                return modules[name]
+            raise AssertionError(f"unexpected module import: {name}")
+
+        monkeypatch.setattr(task_manager_module.importlib, "import_module", fake_import_module)
+
+        try:
+            await manager.db.add_task(Task(id="task-cpu", type="fake_cpu", status=TaskStatus.PENDING))
+            await manager.db.add_task(
+                Task(id="task-vision", type="fake_vision", status=TaskStatus.PENDING)
+            )
+            ready = await manager.db.get_pending_ready_tasks()
+            dispatches = [asyncio.create_task(manager._dispatch(task)) for task in ready]
+
+            await asyncio.wait_for(both_started.wait(), timeout=1.0)
+            assert started == {"task-cpu", "task-vision"}
+
+            release.set()
+            await asyncio.gather(*dispatches)
+            assert (await manager.db.get_task("task-cpu")).status == TaskStatus.DONE
+            assert (await manager.db.get_task("task-vision")).status == TaskStatus.DONE
+        finally:
+            for pool in (cpu_pool, vision_pool):
+                for worker in pool._tasks:
+                    worker.cancel()
+            await asyncio.gather(
+                *cpu_pool._tasks,
+                *vision_pool._tasks,
+                return_exceptions=True,
+            )
+
+    asyncio.run(scenario())
+
+
+def test_task_manager_leaves_tasks_running_when_pool_is_full(tmp_path, monkeypatch):
+    async def scenario():
+        pool = WorkerPool("cpu", 1)
+        pool.start()
+        manager = TaskManager(tmp_path / "tasks.db", {"cpu": pool, "config": {}})
+        first_started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def fake_run(task, context, input_data):
+            if task.id == "task-1":
+                first_started.set()
+                await release.wait()
+            return {"task_id": task.id}
+
+        fake_module = SimpleNamespace(POOL="cpu", run=fake_run)
+
+        def fake_import_module(name):
+            if name == "modules.tasks.fake_serial.fake_serial":
+                return fake_module
+            raise AssertionError(f"unexpected module import: {name}")
+
+        monkeypatch.setattr(task_manager_module.importlib, "import_module", fake_import_module)
+
+        try:
+            await manager.db.add_task(Task(id="task-1", type="fake_serial", status=TaskStatus.PENDING))
+            await manager.db.add_task(Task(id="task-2", type="fake_serial", status=TaskStatus.PENDING))
+            ready = await manager.db.get_pending_ready_tasks()
+            dispatches = [asyncio.create_task(manager._dispatch(task)) for task in ready]
+
+            await asyncio.wait_for(first_started.wait(), timeout=1.0)
+            await asyncio.sleep(0.05)
+
+            first = await manager.db.get_task("task-1")
+            second = await manager.db.get_task("task-2")
+            assert first.status == TaskStatus.RUNNING
+            assert second.status == TaskStatus.RUNNING
+            assert pool.active == 1
+            assert pool.depth == 1
+
+            release.set()
+            await asyncio.gather(*dispatches)
+            assert (await manager.db.get_task("task-1")).status == TaskStatus.DONE
+            assert (await manager.db.get_task("task-2")).status == TaskStatus.DONE
+            assert pool.active == 0
+            assert pool.depth == 0
+        finally:
+            for worker in pool._tasks:
+                worker.cancel()
+            await asyncio.gather(*pool._tasks, return_exceptions=True)
 
     asyncio.run(scenario())
