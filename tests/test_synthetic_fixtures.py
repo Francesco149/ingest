@@ -21,4 +21,4 @@ def test_synthetic_manga_fixture_generation_is_deterministic(tmp_path):
 
     reference = json.loads((tmp_path / "first" / "reference.json").read_text(encoding="utf-8"))
     assert reference["title"] == "Synthetic Key Quest"
-    assert reference["pages"][0]["dialogue"] == ["RIN: A KEY!", "KAI: HIDE IT!"]
+    assert reference["pages"][0]["dialogue"] == ["RIA: A KEY!", "KAI: HIDE IT!"]

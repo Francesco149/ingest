@@ -142,7 +142,7 @@ def test_generated_manga_fixture_against_local_llm_endpoints(tmp_path, monkeypat
         assert transcript["transcript_text"].strip()
         assert "key" in combined
         assert "door" in combined
-        assert "moon" in combined
+        assert "star" in combined
         assert "99" not in combined
         assert "42" not in combined
 

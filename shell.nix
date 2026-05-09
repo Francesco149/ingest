@@ -4,6 +4,7 @@ let
   python = pkgs.python312.withPackages (ps: with ps; [
     fastapi
     httpx
+    pillow
     pytest
     sqlalchemy
     trafilatura
